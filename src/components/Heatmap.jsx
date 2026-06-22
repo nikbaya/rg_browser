@@ -1,0 +1,245 @@
+import { useEffect, useRef, useState } from 'preact/hooks';
+import { colorForRg } from '../lib/color.js';
+
+const LABEL_CELL_PX = 13;   // show axis labels once cells are at least this big
+const MARGIN = 150;         // px reserved for labels when zoomed in
+const MIN_ZOOM_CELLS = 3;   // a drag smaller than this counts as a click
+
+// Clustered correlation heatmap on a canvas. Drag a box to zoom into a submatrix,
+// double-click (or Reset) to zoom back out. Phenotype labels appear once zoomed in.
+export function Heatmap({ data, onSelect }) {
+  const { n, rg, phenotypes } = data;
+  const canvasRef = useRef(null);
+  const stageRef = useRef(null);
+  const wrapRef = useRef(null);
+  const tipRef = useRef(null);
+  const selRef = useRef(null);
+  const geom = useRef({ cell: 1, m: 0 }); // last-drawn geometry for hit-testing
+  const drag = useRef(null);
+
+  const [view, setView] = useState({ i0: 0, i1: n, j0: 0, j1: n });
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    let raf = 0;
+
+    function draw() {
+      const { i0, i1, j0, j1 } = view;
+      const rows = i1 - i0;
+      const cols = j1 - j0;
+      const cssW = wrapRef.current.clientWidth - 2;
+      const cell = Math.max(1, Math.floor(cssW / cols));
+      const showLabels = cell >= LABEL_CELL_PX;
+      const m = showLabels ? MARGIN : 0;
+      geom.current = { cell, m };
+
+      const dpr = window.devicePixelRatio || 1;
+      const cssWidth = m + cols * cell;
+      const cssHeight = m + rows * cell;
+      canvas.style.width = `${cssWidth}px`;
+      canvas.style.height = `${cssHeight}px`;
+      canvas.width = Math.round(cssWidth * dpr);
+      canvas.height = Math.round(cssHeight * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, cssWidth, cssHeight);
+
+      // Heatmap pixels via an offscreen 1px-per-cell image, scaled up nearest-neighbour.
+      const img = ctx.createImageData(cols, rows);
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const v = rg[(i0 + r) * n + (j0 + c)];
+          const [cr, cg, cb] = hexToRgb(colorForRg(v));
+          const o = (r * cols + c) * 4;
+          img.data[o] = cr;
+          img.data[o + 1] = cg;
+          img.data[o + 2] = cb;
+          img.data[o + 3] = 255;
+        }
+      }
+      const tmp = document.createElement('canvas');
+      tmp.width = cols;
+      tmp.height = rows;
+      tmp.getContext('2d').putImageData(img, 0, 0);
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(tmp, 0, 0, cols, rows, m, m, cols * cell, rows * cell);
+
+      if (showLabels) {
+        ctx.fillStyle = '#3e3e40';
+        ctx.font = '11px "Open Sans", sans-serif';
+        const maxChars = Math.floor(MARGIN / 6.5);
+        // Column labels along the top (rotated).
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        for (let c = 0; c < cols; c++) {
+          ctx.save();
+          ctx.translate(m + c * cell + cell / 2, m - 6);
+          ctx.rotate(-Math.PI / 2);
+          ctx.fillText(trunc(phenotypes[j0 + c].description, maxChars), 0, 0);
+          ctx.restore();
+        }
+        // Row labels down the left.
+        ctx.textAlign = 'right';
+        for (let r = 0; r < rows; r++) {
+          ctx.fillText(trunc(phenotypes[i0 + r].description, maxChars), m - 6, m + r * cell + cell / 2);
+        }
+      }
+    }
+
+    function schedule() {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(draw);
+    }
+
+    schedule();
+    const ro = new ResizeObserver(schedule);
+    ro.observe(wrapRef.current);
+    return () => {
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+    };
+  }, [data, view]);
+
+  // Map a pointer event to a cell within the current view.
+  function cellAt(e) {
+    const rect = canvasRef.current.getBoundingClientRect();
+    const { cell, m } = geom.current;
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const c = Math.floor((x - m) / cell);
+    const r = Math.floor((y - m) / cell);
+    const cols = view.j1 - view.j0;
+    const rows = view.i1 - view.i0;
+    if (c < 0 || r < 0 || c >= cols || r >= rows) return null;
+    return { r, c, x, y, i: view.i0 + r, j: view.j0 + c };
+  }
+
+  function onMove(e) {
+    const tip = tipRef.current;
+    const hit = cellAt(e);
+
+    if (drag.current && selRef.current) {
+      // Update the selection rectangle.
+      const rect = canvasRef.current.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const x0 = Math.min(drag.current.x, x);
+      const y0 = Math.min(drag.current.y, y);
+      const sel = selRef.current;
+      sel.style.display = 'block';
+      sel.style.left = `${x0}px`;
+      sel.style.top = `${y0}px`;
+      sel.style.width = `${Math.abs(x - drag.current.x)}px`;
+      sel.style.height = `${Math.abs(y - drag.current.y)}px`;
+    }
+
+    if (!hit) {
+      tip.classList.remove('show');
+      return;
+    }
+    const v = rg[hit.i * n + hit.j];
+    tip.classList.add('show');
+    tip.style.left = `${e.clientX + 14}px`;
+    tip.style.top = `${e.clientY + 14}px`;
+    tip.innerHTML =
+      `<strong>${phenotypes[hit.i].description}</strong><br>` +
+      `<strong>${phenotypes[hit.j].description}</strong><br>` +
+      `<span class="mono">rg = ${Number.isNaN(v) ? '—' : v.toFixed(3)}</span>`;
+  }
+
+  function onDown(e) {
+    const hit = cellAt(e);
+    const rect = canvasRef.current.getBoundingClientRect();
+    drag.current = hit
+      ? { x: e.clientX - rect.left, y: e.clientY - rect.top, startCell: hit }
+      : null;
+  }
+
+  function onUp(e) {
+    const sel = selRef.current;
+    if (sel) sel.style.display = 'none';
+    const start = drag.current;
+    drag.current = null;
+    if (!start) return;
+
+    const hit = cellAt(e);
+    const endCell = hit || start.startCell;
+    const r0 = Math.min(start.startCell.r, endCell.r);
+    const r1 = Math.max(start.startCell.r, endCell.r) + 1;
+    const c0 = Math.min(start.startCell.c, endCell.c);
+    const c1 = Math.max(start.startCell.c, endCell.c) + 1;
+
+    if (r1 - r0 >= MIN_ZOOM_CELLS && c1 - c0 >= MIN_ZOOM_CELLS) {
+      setView((v) => ({
+        i0: v.i0 + r0,
+        i1: v.i0 + r1,
+        j0: v.j0 + c0,
+        j1: v.j0 + c1,
+      }));
+    } else if (onSelect) {
+      onSelect(start.startCell.i); // treat a non-drag as a click
+    }
+  }
+
+  const isZoomed = view.i0 !== 0 || view.i1 !== n || view.j0 !== 0 || view.j1 !== n;
+
+  return (
+    <div>
+      <p class="view-intro">
+        The full <strong>{n} × {n}</strong> matrix of genetic correlations, clustered so related
+        traits sit together. Bright <strong style="color: var(--broad-blue)">blue</strong> blocks
+        along the diagonal are groups of mutually correlated phenotypes.{' '}
+        <strong>Drag a box to zoom in</strong>; labels appear once cells are large enough.
+      </p>
+
+      <div class="hm-bar">
+        <span class="hm-crumb mono">
+          {isZoomed
+            ? `rows ${view.i0 + 1}–${view.i1} × cols ${view.j0 + 1}–${view.j1} of ${n}`
+            : `full ${n} × ${n} matrix`}
+        </span>
+        <button class="btn-reset" disabled={!isZoomed} onClick={() => setView({ i0: 0, i1: n, j0: 0, j1: n })}>
+          ⟲ Reset zoom
+        </button>
+      </div>
+
+      <div ref={wrapRef} class="viz-wrap card" style="padding: 0; overflow: auto; max-height: 78vh;">
+        <div ref={stageRef} class="hm-stage" style="position: relative; width: fit-content;">
+          <canvas
+            ref={canvasRef}
+            style="display:block; image-rendering: pixelated; cursor: crosshair;"
+            onMouseMove={onMove}
+            onMouseDown={onDown}
+            onMouseUp={onUp}
+            onMouseLeave={() => {
+              tipRef.current.classList.remove('show');
+              if (selRef.current) selRef.current.style.display = 'none';
+              drag.current = null;
+            }}
+          />
+          <div ref={selRef} class="hm-sel" />
+        </div>
+      </div>
+      <div class="legend">
+        <span>−1</span>
+        <span class="bar" />
+        <span>+1</span>
+        <span style="margin-left:0.5rem">genetic correlation (rg)</span>
+      </div>
+      <div ref={tipRef} class="viz-tooltip" />
+    </div>
+  );
+}
+
+function trunc(s, max) {
+  return s.length > max ? s.slice(0, max - 1) + '…' : s;
+}
+
+function hexToRgb(hex) {
+  if (hex[0] === '#') {
+    const v = parseInt(hex.slice(1), 16);
+    return [(v >> 16) & 255, (v >> 8) & 255, v & 255];
+  }
+  const m = hex.match(/\d+/g);
+  return m ? [+m[0], +m[1], +m[2]] : [228, 228, 234];
+}

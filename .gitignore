@@ -1,0 +1,9 @@
+node_modules/
+dist/
+data/raw/
+.DS_Store
+*.log
+.vite/
+
+# Broad Institute brand reference (internal doc — not for the public repo)
+Broad Style Guide*.pdf
