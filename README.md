@@ -4,6 +4,8 @@ An interactive, responsive browser of UK Biobank LDSC **genetic correlations** a
 heritable phenotypes, built from the
 [UKBB LDSC r²](https://github.com/astheeggeggs/UKBB_ldsc_r2) significant-correlation results.
 
+**🔗 Live site: https://nikbaya.github.io/rg_browser/**
+
 Styled per the Broad Institute brand (not an official Broad product).
 
 ## Views
