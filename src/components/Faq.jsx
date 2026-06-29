@@ -186,14 +186,99 @@ const ITEMS = [
   {
     q: 'Where does the data come from?',
     a: (
+      <>
+        <p>
+          Significant genetic correlations from the{' '}
+          <a href="https://github.com/astheeggeggs/UKBB_ldsc_r2" target="_blank" rel="noreferrer">
+            UKBB LDSC r²
+          </a>{' '}
+          project (Neale lab), based on GWAS of the{' '}
+          <a href="https://www.ukbiobank.ac.uk/" target="_blank" rel="noreferrer">
+            UK Biobank
+          </a>
+          . These are publicly released <strong>summary statistics</strong> — no individual-level
+          data is used or exposed here. Phenotype categories are mapped from the UK Biobank Data
+          Showcase schema. This is a visualization, not an official Broad or Neale lab product.
+        </p>
+        <p>
+          This research has been conducted using the UK Biobank Resource under Application Number{' '}
+          <strong>31063</strong>.
+        </p>
+      </>
+    ),
+  },
+  {
+    q: 'Limitations & responsible use',
+    a: (
+      <>
+        <p>
+          This tool is for <strong>research and education only</strong>. It is{' '}
+          <strong>not medical advice</strong> and must not be used for diagnosis or clinical
+          decisions.
+        </p>
+        <ul>
+          <li>
+            The UK Biobank cohort is predominantly of European ancestry, so these estimates may not
+            generalize to other populations.
+          </li>
+          <li>
+            Only genome-wide <strong>significant</strong> correlations are shown; absent pairs are
+            not necessarily uncorrelated, so the displayed set is a filtered view, not the full
+            picture.
+          </li>
+          <li>
+            Genetic correlation reflects shared common-variant architecture — it does{' '}
+            <strong>not</strong> imply causation between the traits.
+          </li>
+          <li>
+            Estimates carry sampling uncertainty (see the standard errors); some |rg| values can
+            even fall outside ±1 (see "Why are some |rg| values greater than 1?" above).
+          </li>
+        </ul>
+      </>
+    ),
+  },
+  {
+    q: 'Who made this? How do I cite it?',
+    a: (
+      <>
+        <p>
+          The original UK Biobank rg browser was built by <strong>Duncan Palmer</strong>. This
+          version was created by <strong>Nikolas Baya</strong> with Claude Code.
+          It is a visualization, not an official Broad or Neale lab product.
+        </p>
+        <p>
+          Corrections, questions, and bug reports are welcome via{' '}
+          <a href="https://github.com/nikbaya/rg_browser/issues" target="_blank" rel="noreferrer">
+            GitHub Issues
+          </a>
+          .
+        </p>
+        <p>
+          To cite this tool: Palmer, D., Baya, N. &amp; Neale, B. <em>Genetic Correlation Browser (UK Biobank LDSC)</em>.{' '}
+          <a href="https://nikbaya.github.io/rg_browser/" target="_blank" rel="noreferrer">
+            nikbaya.github.io/rg_browser
+          </a>
+          . Machine-readable metadata is available via "Cite this repository" on the{' '}
+          <a href="https://github.com/nikbaya/rg_browser" target="_blank" rel="noreferrer">
+            GitHub repository
+          </a>
+          .
+        </p>
+      </>
+    ),
+  },
+  {
+    q: 'Privacy & analytics',
+    a: (
       <p>
-        Significant genetic correlations from the{' '}
-        <a href="https://github.com/astheeggeggs/UKBB_ldsc_r2" target="_blank" rel="noreferrer">
-          UKBB LDSC r²
-        </a>{' '}
-        project (Neale lab), based on GWAS of the UK Biobank. Phenotype categories are mapped from
-        the UK Biobank Data Showcase schema. This is a visualization, not an official Broad or Neale
-        lab product.
+        This site uses{' '}
+        <a href="https://www.goatcounter.com/" target="_blank" rel="noreferrer">
+          GoatCounter
+        </a>
+        , a privacy-friendly, cookieless analytics tool that stores no personal data. It records
+        anonymous page-view counts only — no cookies, no cross-site tracking, no identifying
+        information.
       </p>
     ),
   },

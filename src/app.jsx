@@ -166,11 +166,22 @@ export function App() {
       </main>
 
       <footer class="app-footer">
-        Data: significant genetic correlations from{' '}
-        <a href="https://github.com/astheeggeggs/UKBB_ldsc_r2" target="_blank" rel="noreferrer">
-          UKBB&nbsp;LDSC&nbsp;r²
-        </a>{' '}
-        (Neale lab). Estimated with LD score regression.
+        <p>
+          Data: significant genetic correlations from{' '}
+          <a href="https://github.com/astheeggeggs/UKBB_ldsc_r2" target="_blank" rel="noreferrer">
+            UKBB&nbsp;LDSC&nbsp;r²
+          </a>{' '}
+          (Neale lab), GWAS of the{' '}
+          <a href="https://www.ukbiobank.ac.uk/" target="_blank" rel="noreferrer">
+            UK&nbsp;Biobank
+          </a>{' '}
+          — publicly released summary statistics, no individual-level data.
+          {data?.meta?.built_date ? ` · Data built ${data.meta.built_date}` : ''}
+        </p>
+        <p class="app-footer-sub">
+          Research and education only — not medical advice. See the{' '}
+          <a href="#/faq">FAQ</a> for methods, limitations, credits, and privacy.
+        </p>
       </footer>
     </div>
   );

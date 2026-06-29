@@ -307,6 +307,18 @@ a { color: var(--broad-blue); }
 
 .show-more-wrap { text-align: center; margin-top: 1.1rem; }
 
+/* Inline error when an on-demand data load (sex strata / CSV) fails. */
+.data-error {
+  margin-bottom: 0.7rem;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--rg-pos);
+  border-left-width: 4px;
+  border-radius: var(--radius);
+  background: #fbeaea;
+  color: var(--ink);
+  font-size: 0.85rem;
+}
+
 .not-found { padding: 1.5rem 1.6rem; max-width: 520px; }
 .not-found h2 { margin: 0 0 0.5rem; }
 .not-found-home { display: inline-block; margin-top: 0.5rem; font-weight: 600; }
@@ -325,6 +337,9 @@ a { color: var(--broad-blue); }
   color: var(--text-muted);
   font-size: 0.82rem;
 }
+.app-footer p { margin: 0 0 0.4rem; max-width: 80ch; }
+.app-footer p:last-child { margin-bottom: 0; }
+.app-footer-sub { font-size: 0.78rem; opacity: 0.85; }
 .app-footer a { font-weight: 600; }
 
 /* ---- Loading / states ---- */
@@ -680,7 +695,12 @@ input[type='text']:focus, input[type='number']:focus, select:focus {
 .sort-arrow { font-size: 0.7em; color: var(--accent); }
 
 /* ---- Range sliders (single + dual-thumb) ---- */
+/* Native range thumbs only travel from half-a-thumb-width in from each edge, so
+   the track/ticks/labels are inset by that radius to keep ticks centered under
+   the thumbs at every position (thumb travel is governed by its 16px width → 8px
+   radius). The inputs stay full-width so the thumbs still move edge to edge. */
 .range-slider {
+  --thumb-radius: 8px;
   position: relative;
   height: 30px;
   display: flex;
@@ -689,8 +709,8 @@ input[type='text']:focus, input[type='number']:focus, select:focus {
 .range-slider.has-ticks { height: 44px; align-items: flex-start; }
 .range-track {
   position: absolute;
-  left: 0;
-  right: 0;
+  left: var(--thumb-radius);
+  right: var(--thumb-radius);
   top: 11px;
   height: 5px;
   background: var(--surface-2);
@@ -707,8 +727,8 @@ input[type='text']:focus, input[type='number']:focus, select:focus {
 }
 .range-tick-labels {
   position: absolute;
-  left: 0;
-  right: 0;
+  left: var(--thumb-radius);
+  right: var(--thumb-radius);
   top: 24px;
   height: 14px;
 }

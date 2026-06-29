@@ -59,6 +59,30 @@ their Showcase *main category*, rolled up from ~70 granular groups into a compac
 ICD-10 chapter (`ICD_LETTER` / `ICD_ROMAN` / `NAMED_ENDPOINTS`); everything else falls back to
 `Other`. This is also explained in the in-app FAQ.
 
+## Data, attribution & disclaimer
+
+The displayed values are publicly released **summary statistics** from the
+[UKBB LDSC r²](https://github.com/astheeggeggs/UKBB_ldsc_r2) project (Neale lab), based on GWAS of
+the [UK Biobank](https://www.ukbiobank.ac.uk/) — **no individual-level data** is used or exposed.
+Each build stamps `public/data/meta.json` with the source and build date, surfaced in the app
+footer.
+
+> This research has been conducted using the UK Biobank Resource under **Application Number 31063**.
+
+This tool is for **research and education only — not medical advice**. UK Biobank is predominantly
+European-ancestry (limited generalizability); only genome-wide **significant** correlations are
+shown (a filtered view); and genetic correlation does **not** imply causation. See the in-app FAQ
+for the full limitations.
+
+## Citation & credits
+
+The original UK Biobank rg browser was built by **Duncan Palmer**. This version was created by
+**Nikolas Baya** with Claude Code. It is a visualization, not an official Broad or Neale lab
+product.
+
+To cite this tool, use [`CITATION.cff`](CITATION.cff). Corrections and questions are welcome via
+[GitHub Issues](https://github.com/nikbaya/rg_browser/issues).
+
 ## Architecture
 
 The 45MB source TSV is preprocessed once into compact binary matrices (~1.8MB each) plus

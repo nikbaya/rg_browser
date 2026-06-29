@@ -59,17 +59,34 @@ export function PhenotypeDetail({ data, index, onSelect }) {
   const [colsOpen, setColsOpen] = useState(false);
   const [shown, setShown] = useState(PAGE);
   const [sexMats, setSexMats] = useState({}); // { male, female } loaded on demand
+  const [sexError, setSexError] = useState(null); // message when a stratum fails to load
   const colsRef = useRef(null);
 
   // Load the male/female matrices lazily whenever a sex-specific column is shown.
+  // On failure we surface a banner and switch that stratum's columns back off, so
+  // its cells stop showing the "…" loading state forever; the user can re-enable
+  // them to retry.
   useEffect(() => {
     const needed = sexesNeeded(visible);
     let cancelled = false;
     needed.forEach((s) => {
       if (sexMats[s]) return;
-      ensureSexMatrices(s).then((m) => {
-        if (!cancelled) setSexMats((prev) => (prev[s] ? prev : { ...prev, [s]: m }));
-      });
+      ensureSexMatrices(s).then(
+        (m) => {
+          if (cancelled) return;
+          setSexError(null);
+          setSexMats((prev) => (prev[s] ? prev : { ...prev, [s]: m }));
+        },
+        () => {
+          if (cancelled) return;
+          setSexError(`Couldn't load ${s} statistics — check your connection and try again.`);
+          setVisible((v) => {
+            const next = new Set(v);
+            COLUMNS.forEach((c) => { if (c.sex === s) next.delete(c.key); });
+            return next;
+          });
+        }
+      );
     });
     return () => { cancelled = true; };
   }, [visible, sexMats]);
@@ -182,12 +199,17 @@ export function PhenotypeDetail({ data, index, onSelect }) {
 
   // Export always includes the male/female strata, loading them first if needed.
   const exportCsv = async () => {
-    const [male, female] = await Promise.all([
-      ensureSexMatrices('male'),
-      ensureSexMatrices('female'),
-    ]);
-    const csv = rowsToCsv(data, index, filtered, { male, female });
-    downloadCsv(`rg_${seed.id}.csv`, csv);
+    try {
+      const [male, female] = await Promise.all([
+        ensureSexMatrices('male'),
+        ensureSexMatrices('female'),
+      ]);
+      const csv = rowsToCsv(data, index, filtered, { male, female });
+      downloadCsv(`rg_${seed.id}.csv`, csv);
+      setSexError(null);
+    } catch (e) {
+      setSexError(`Couldn't prepare the CSV — ${e.message}`);
+    }
   };
 
   const filtersActive =
@@ -284,6 +306,12 @@ export function PhenotypeDetail({ data, index, onSelect }) {
           </div>
         </div>
       </div>
+
+      {sexError && (
+        <div class="data-error" role="alert">
+          {sexError}
+        </div>
+      )}
 
       <div class="results-toolbar">
         <span class="result-count">

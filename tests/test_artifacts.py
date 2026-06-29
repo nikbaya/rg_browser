@@ -5,6 +5,7 @@ committed matrices. They catch structural corruption: wrong sizes, broken
 symmetry, NaN-mask drift, out-of-domain values, malformed phenotype records.
 """
 
+import json
 import os
 
 import numpy as np
@@ -171,3 +172,15 @@ def test_cluster_ids_in_range(phenotypes, hierarchy):
     k = len(hierarchy["clusters"])
     for p in phenotypes:
         assert 0 <= p["c"] < k, f"cluster id {p['c']} out of [0, {k})"
+
+
+def test_meta_json_shape(n):
+    """meta.json carries the provenance/version stamp surfaced in the footer."""
+    with open(os.path.join(DATA_DIR, "meta.json")) as fh:
+        meta = json.load(fh)
+    for key in ("built_date", "n_phenotypes", "source_url", "ukb_application"):
+        assert key in meta, f"meta.json missing key: {key}"
+    assert meta["n_phenotypes"] == n
+    assert meta["ukb_application"] == 31063
+    # built_date is ISO YYYY-MM-DD
+    assert len(meta["built_date"]) == 10 and meta["built_date"][4] == "-"

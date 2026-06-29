@@ -4,8 +4,29 @@ import { setCategories } from './color.js';
 
 let cache = null;
 
+// Network requests can hang indefinitely on a flaky connection; abort after
+// this long so the UI can show an error instead of an endless spinner.
+const FETCH_TIMEOUT_MS = 30000;
+
+// fetch() with a timeout via AbortController. Throws a clear error on timeout or
+// network failure so callers can surface it.
+async function fetchWithTimeout(url) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
+  try {
+    return await fetch(url, { signal: ctrl.signal });
+  } catch (e) {
+    if (e.name === 'AbortError') {
+      throw new Error(`Timed out loading ${url} (>${FETCH_TIMEOUT_MS / 1000}s)`);
+    }
+    throw new Error(`Network error loading ${url}: ${e.message}`);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function fetchF32(url, n) {
-  const res = await fetch(url);
+  const res = await fetchWithTimeout(url);
   if (!res.ok) throw new Error(`Failed to load ${url}: ${res.status}`);
   const buf = await res.arrayBuffer();
   const arr = new Float32Array(buf);
@@ -29,10 +50,15 @@ export async function loadData() {
   if (cache) return cache;
 
   const [phenotypes, hierarchy] = await Promise.all([
-    fetch(dataUrl('phenotypes.json')).then((r) => r.json()),
-    fetch(dataUrl('hierarchy.json')).then((r) => r.json()),
+    fetchWithTimeout(dataUrl('phenotypes.json')).then((r) => r.json()),
+    fetchWithTimeout(dataUrl('hierarchy.json')).then((r) => r.json()),
   ]);
   const n = phenotypes.length;
+
+  // Provenance/version stamp; optional so the app still loads if it's absent.
+  const meta = await fetchWithTimeout(dataUrl('meta.json'))
+    .then((r) => (r.ok ? r.json() : null))
+    .catch(() => null);
 
   const [rg, se, nlogp] = await Promise.all([
     fetchF32(dataUrl('rg.f32'), n),
@@ -49,7 +75,7 @@ export async function loadData() {
   setCategories(categories);
 
   cache = {
-    n, phenotypes, hierarchy, categories, rg, se, nlogp, idToIndex,
+    n, phenotypes, hierarchy, categories, rg, se, nlogp, idToIndex, meta,
     // Lazily-loaded male/female matrices, keyed by sex (for optional columns).
     sexMatrices: {},
   };

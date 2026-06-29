@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+title: Genetic Correlation Browser (UK Biobank LDSC)
+message: >-
+  If you use this tool, please cite it using the metadata below.
+type: software
+authors:
+  - given-names: Duncan
+    family-names: Palmer
+    affiliation: Broad Institute of MIT and Harvard
+  - given-names: Nikolas
+    family-names: Baya
+    affiliation: Broad Institute of MIT and Harvard
+  - given-names: Benjamin
+    family-names: Neale
+    affiliation: Broad Institute of MIT and Harvard
+repository-code: https://github.com/nikbaya/rg_browser
+url: https://nikbaya.github.io/rg_browser/
+abstract: >-
+  An interactive browser of UK Biobank LDSC genetic correlations across
+  heritable phenotypes, visualizing publicly released summary statistics from
+  the Neale lab UKBB LDSC r2 project (UK Biobank Resource, Application Number
+  31063). The original UK Biobank rg browser was built by Duncan Palmer; this
+  version was created by Nikolas Baya with Claude Code.
+license: MIT

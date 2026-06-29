@@ -23,6 +23,7 @@ end-user payload is only a few MB. Run once (or whenever the source changes):
     python3 scripts/build_data.py
 """
 
+import datetime
 import json
 import math
 import os
@@ -532,6 +533,20 @@ def main():
         write_f32(os.path.join(OUT_DIR, f"rg{sfx}.f32"), rgm)
         write_f32(os.path.join(OUT_DIR, f"se{sfx}.f32"), sem)
         write_f32(os.path.join(OUT_DIR, f"nlogp{sfx}.f32"), nlm)
+
+    # Provenance / version stamp surfaced in the app footer + FAQ. Keep the keys
+    # stable: tests and src/lib/data.js read them by name.
+    meta = {
+        "built_date": datetime.date.today().isoformat(),
+        "n_phenotypes": n,
+        "source_url": SOURCE_URL,
+        "source_repo": "https://github.com/astheeggeggs/UKBB_ldsc_r2",
+        "selection": "genome-wide significant correlation pairs only",
+        "ukb_application": 31063,
+    }
+    with open(os.path.join(OUT_DIR, "meta.json"), "w") as fh:
+        json.dump(meta, fh, separators=(",", ":"))
+    print(f"  wrote meta.json (built {meta['built_date']})")
 
     # Spot-check: Food weight x Iron should be rg ~ 0.788 in the raw data.
     print("Done. n =", n)
