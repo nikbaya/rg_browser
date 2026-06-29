@@ -3,7 +3,7 @@ import { topCorrelations, formatNum, formatP, ensureSexMatrices, statsFromMatric
 import { colorForCategory, textOnColor } from '../lib/color.js';
 import { phenotypePasses, pairPasses, rowStats } from '../lib/filters.js';
 import { rowsToCsv, downloadCsv } from '../lib/csv.js';
-import { ResultsTable, COLUMNS, defaultVisibleColumns, sexesNeeded } from './ResultsTable.jsx';
+import { ResultsTable, COLUMNS, COLUMN_PRESETS, defaultVisibleColumns, sexesNeeded } from './ResultsTable.jsx';
 import { RangeSlider } from './RangeSlider.jsx';
 
 const PAGE = 50; // rows revealed initially and per "Show more" click
@@ -196,7 +196,6 @@ export function PhenotypeDetail({ data, index, onSelect }) {
   return (
     <div class="detail">
       <div class="detail-header card">
-        <div class="field-label">Phenotype</div>
         <h1 class="detail-name">{seed.description}</h1>
         <div class="detail-meta mono">
           {seed.id}
@@ -208,11 +207,11 @@ export function PhenotypeDetail({ data, index, onSelect }) {
             {seed.cat}
           </span>
         </div>
-        <div class="detail-h2 mono">
-          <span>h² = {formatNum(seed.h2)}</span>
-          <span> · h² p = {seed.h2_p != null ? formatP(seed.h2_p) : '—'}</span>
-          <span> · Neff = {seed.neff != null ? seed.neff.toLocaleString('en-US') : '—'}</span>
-        </div>
+        <dl class="detail-stats mono">
+          <div><dt>h²</dt><dd>{formatNum(seed.h2)}</dd></div>
+          <div><dt>h² p</dt><dd>{seed.h2_p != null ? formatP(seed.h2_p) : '—'}</dd></div>
+          <div><dt>Neff</dt><dd>{seed.neff != null ? seed.neff.toLocaleString('en-US') : '—'}</dd></div>
+        </dl>
         {showcase && (
           <a class="showcase-link" href={showcase.url} target="_blank" rel="noopener noreferrer">
             {showcase.label}
@@ -299,6 +298,13 @@ export function PhenotypeDetail({ data, index, onSelect }) {
             </button>
             {colsOpen && (
               <div class="cols-popover">
+                <div class="cols-presets">
+                  {COLUMN_PRESETS.map((p) => (
+                    <button key={p.key} class="btn-ghost btn-ghost-sm" onClick={() => setVisible(p.cols())}>
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
                 {COLUMN_GROUPS.map((grp) => (
                   <div class="cols-group" key={grp.title || 'base'}>
                     {grp.title && <div class="cols-group-title">{grp.title}</div>}

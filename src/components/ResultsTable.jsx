@@ -11,33 +11,89 @@ import { colorForRg, textOnRg, colorForCategory, textOnColor } from '../lib/colo
 const sexTag = (s) => <span class="col-sex">{s}</span>;
 
 export const COLUMNS = [
-  { key: 'name', label: 'Correlated phenotype', sort: 'name', always: true },
-  { key: 'cat', label: 'Category', sort: 'cat', defaultOn: true },
-  { key: 'rg', label: <span class="lc">rg</span>, sort: 'rg', num: true, defaultOn: true },
-  { key: 'abs', label: <span class="lc">|rg|</span>, sort: 'abs', num: true },
-  { key: 'se', label: <span class="lc">rg SE</span>, sort: 'se', num: true },
-  { key: 'z', label: <span class="lc">rg z</span>, sort: 'z', num: true },
-  { key: 'p', label: <span class="lc">rg p</span>, sort: 'p', num: true, defaultOn: true },
-  { key: 'h2', label: <span class="lc">h²</span>, sort: 'h2', num: true, defaultOn: true },
-  { key: 'h2p', label: <span class="lc">h² p</span>, sort: 'h2p', num: true, defaultOn: true },
-  { key: 'neff', label: <span class="lc">Neff</span>, sort: 'neff', num: true },
+  { key: 'name', label: 'Correlated phenotype', sort: 'name', always: true, cluster: 'base' },
+  { key: 'cat', label: 'Category', sort: 'cat', defaultOn: true, cluster: 'base' },
+  { key: 'rg', label: <span class="lc">rg</span>, sort: 'rg', num: true, defaultOn: true, cluster: 'rg' },
+  { key: 'abs', label: <span class="lc">|rg|</span>, sort: 'abs', num: true, cluster: 'rg' },
+  { key: 'se', label: <span class="lc">rg SE</span>, sort: 'se', num: true, cluster: 'rg' },
+  { key: 'z', label: <span class="lc">rg z</span>, sort: 'z', num: true, cluster: 'rg' },
+  { key: 'p', label: <span class="lc">rg p</span>, sort: 'p', num: true, defaultOn: true, cluster: 'rg' },
+  { key: 'h2', label: <span class="lc">h²</span>, sort: 'h2', num: true, defaultOn: true, cluster: 'pheno' },
+  { key: 'h2p', label: <span class="lc">h² p</span>, sort: 'h2p', num: true, defaultOn: true, cluster: 'pheno' },
+  { key: 'neff', label: <span class="lc">Neff</span>, sort: 'neff', num: true, cluster: 'pheno' },
   // Optional male/female strata (off by default). `sex` marks which matrices a
   // column needs loaded; `pheno` columns read straight from phenotypes.json.
-  { key: 'rg_m', label: <><span class="lc">rg</span> {sexTag('♂')}</>, sort: 'rg_m', num: true, group: 'male', sex: 'male' },
-  { key: 'se_m', label: <><span class="lc">rg SE</span> {sexTag('♂')}</>, sort: 'se_m', num: true, group: 'male', sex: 'male' },
-  { key: 'z_m', label: <><span class="lc">rg z</span> {sexTag('♂')}</>, sort: 'z_m', num: true, group: 'male', sex: 'male' },
-  { key: 'p_m', label: <><span class="lc">rg p</span> {sexTag('♂')}</>, sort: 'p_m', num: true, group: 'male', sex: 'male' },
-  { key: 'h2_m', label: <><span class="lc">h²</span> {sexTag('♂')}</>, sort: 'h2_m', num: true, group: 'male', pheno: 'h2_male' },
-  { key: 'rg_f', label: <><span class="lc">rg</span> {sexTag('♀')}</>, sort: 'rg_f', num: true, group: 'female', sex: 'female' },
-  { key: 'se_f', label: <><span class="lc">rg SE</span> {sexTag('♀')}</>, sort: 'se_f', num: true, group: 'female', sex: 'female' },
-  { key: 'z_f', label: <><span class="lc">rg z</span> {sexTag('♀')}</>, sort: 'z_f', num: true, group: 'female', sex: 'female' },
-  { key: 'p_f', label: <><span class="lc">rg p</span> {sexTag('♀')}</>, sort: 'p_f', num: true, group: 'female', sex: 'female' },
-  { key: 'h2_f', label: <><span class="lc">h²</span> {sexTag('♀')}</>, sort: 'h2_f', num: true, group: 'female', pheno: 'h2_female' },
+  { key: 'rg_m', label: <><span class="lc">rg</span> {sexTag('♂')}</>, sort: 'rg_m', num: true, group: 'male', sex: 'male', cluster: 'male' },
+  { key: 'se_m', label: <><span class="lc">rg SE</span> {sexTag('♂')}</>, sort: 'se_m', num: true, group: 'male', sex: 'male', cluster: 'male' },
+  { key: 'z_m', label: <><span class="lc">rg z</span> {sexTag('♂')}</>, sort: 'z_m', num: true, group: 'male', sex: 'male', cluster: 'male' },
+  { key: 'p_m', label: <><span class="lc">rg p</span> {sexTag('♂')}</>, sort: 'p_m', num: true, group: 'male', sex: 'male', cluster: 'male' },
+  { key: 'h2_m', label: <><span class="lc">h²</span> {sexTag('♂')}</>, sort: 'h2_m', num: true, group: 'male', pheno: 'h2_male', cluster: 'male' },
+  { key: 'rg_f', label: <><span class="lc">rg</span> {sexTag('♀')}</>, sort: 'rg_f', num: true, group: 'female', sex: 'female', cluster: 'female' },
+  { key: 'se_f', label: <><span class="lc">rg SE</span> {sexTag('♀')}</>, sort: 'se_f', num: true, group: 'female', sex: 'female', cluster: 'female' },
+  { key: 'z_f', label: <><span class="lc">rg z</span> {sexTag('♀')}</>, sort: 'z_f', num: true, group: 'female', sex: 'female', cluster: 'female' },
+  { key: 'p_f', label: <><span class="lc">rg p</span> {sexTag('♀')}</>, sort: 'p_f', num: true, group: 'female', sex: 'female', cluster: 'female' },
+  { key: 'h2_f', label: <><span class="lc">h²</span> {sexTag('♀')}</>, sort: 'h2_f', num: true, group: 'female', pheno: 'h2_female', cluster: 'female' },
 ];
+
+// Display titles for each cluster's spanning group header. `base` (name/category)
+// gets an empty spanner so the group row aligns above the label row.
+const CLUSTER_TITLES = {
+  base: '',
+  rg: 'Genetic correlation',
+  pheno: 'Partner trait',
+  male: 'Male',
+  female: 'Female',
+};
+
+// Coalesce contiguous runs of visible columns sharing a cluster into spanning
+// header cells: [{ cluster, title, span }]. First column of each run carries the
+// group separator border.
+function clusterSpans(cols) {
+  const spans = [];
+  for (const col of cols) {
+    const last = spans[spans.length - 1];
+    if (last && last.cluster === col.cluster) last.span += 1;
+    else spans.push({ cluster: col.cluster, title: CLUSTER_TITLES[col.cluster] ?? '', span: 1 });
+  }
+  return spans;
+}
+
+// Which visible columns start a new cluster (get a left separator). The first
+// column overall never gets one.
+function clusterStarts(cols) {
+  const starts = new Set();
+  let prev = null;
+  for (const col of cols) {
+    if (prev && col.cluster !== prev) starts.add(col.key);
+    prev = col.cluster;
+  }
+  return starts;
+}
 
 export function defaultVisibleColumns() {
   return new Set(COLUMNS.filter((c) => c.always || c.defaultOn).map((c) => c.key));
 }
+
+// Quick column presets for the popover. Keys map to the set of visible columns.
+export const COLUMN_PRESETS = [
+  { key: 'overview', label: 'Overview', cols: () => defaultVisibleColumns() },
+  {
+    key: 'full',
+    label: 'Full stats',
+    cols: () =>
+      new Set(COLUMNS.filter((c) => c.cluster === 'base' || c.cluster === 'rg' || c.cluster === 'pheno').map((c) => c.key)),
+  },
+  {
+    key: 'sex',
+    label: 'Sex-specific',
+    cols: () =>
+      new Set(
+        COLUMNS.filter(
+          (c) => c.cluster === 'base' || c.cluster === 'rg' || c.cluster === 'male' || c.cluster === 'female'
+        ).map((c) => c.key)
+      ),
+  },
+];
 
 // Sexes whose matrices must be loaded for the currently-visible columns.
 export function sexesNeeded(visible) {
@@ -50,6 +106,8 @@ export function sexesNeeded(visible) {
 export function ResultsTable({ rows, phenotypes, visible, sortKey, sortDir, onSort, onRowClick }) {
   const cols = COLUMNS.filter((c) => c.always || visible.has(c.key));
   const arrow = sortDir === 'asc' ? ' ▲' : ' ▼';
+  const groups = clusterSpans(cols);
+  const starts = clusterStarts(cols);
 
   // rg value rendered as a colored chip; '…' while the stratum is still loading.
   const rgChip = (v) =>
@@ -65,7 +123,11 @@ export function ResultsTable({ rows, phenotypes, visible, sortKey, sortDir, onSo
     const p = phenotypes[row.j];
     switch (col.key) {
       case 'name':
-        return p.description;
+        return (
+          <button class="row-link" onClick={() => onRowClick(row.j)}>
+            {p.description}
+          </button>
+        );
       case 'cat':
         return (
           <span
@@ -121,11 +183,18 @@ export function ResultsTable({ rows, phenotypes, visible, sortKey, sortDir, onSo
     <div class="table-scroll">
     <table class="data-table">
       <thead>
+        <tr class="group-row">
+          {groups.map((g, i) => (
+            <th key={g.cluster + i} colSpan={g.span} class={`group-th${i > 0 ? ' col-group-sep' : ''}`}>
+              {g.title}
+            </th>
+          ))}
+        </tr>
         <tr>
           {cols.map((col) => (
             <th
               key={col.key}
-              class={`${col.num ? 'num' : ''}${sortKey === col.sort ? ' sorted' : ''}`}
+              class={`${col.num ? 'num' : ''}${sortKey === col.sort ? ' sorted' : ''}${starts.has(col.key) ? ' col-group-sep' : ''}`}
               onClick={() => onSort(col.sort)}
             >
               {col.label}
@@ -136,9 +205,9 @@ export function ResultsTable({ rows, phenotypes, visible, sortKey, sortDir, onSo
       </thead>
       <tbody>
         {rows.map((row) => (
-          <tr key={row.j} class="clickable" onClick={() => onRowClick(row.j)}>
+          <tr key={row.j}>
             {cols.map((col) => (
-              <td key={col.key} class={col.num ? 'num' : ''}>
+              <td key={col.key} class={`${col.num ? 'num' : ''}${starts.has(col.key) ? ' col-group-sep' : ''}`}>
                 {cell(col, row)}
               </td>
             ))}

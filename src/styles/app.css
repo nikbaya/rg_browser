@@ -203,6 +203,7 @@ a { color: var(--broad-blue); }
 .explore-card-desc { font-size: 0.85rem; color: var(--text-muted); line-height: 1.4; }
 
 /* ---- Phenotype detail ---- */
+/* Single left-aligned reading column: name → meta → stats → showcase. */
 .detail-header {
   padding: 1.2rem 1.4rem;
   margin-bottom: 1.3rem;
@@ -211,21 +212,32 @@ a { color: var(--broad-blue); }
 .detail-name {
   font-size: clamp(1.3rem, 3vw, 1.7rem);
   font-weight: 800;
-  margin: 0.1rem 0 0.4rem;
+  margin: 0 0 0.4rem;
   letter-spacing: -0.01em;
 }
 .detail-meta { font-size: 0.85rem; color: var(--text-muted); }
-.detail-h2 {
-  font-size: 0.85rem;
-  color: var(--text-muted);
-  margin-top: 0.4rem;
+/* Inline stat strip: left-aligned label-over-value pairs below the meta line. */
+.detail-stats {
   display: flex;
   flex-wrap: wrap;
-  gap: 0 0.25rem;
+  justify-content: flex-start;
+  gap: 0.4rem 1.6rem;
+  margin: 0.8rem 0 0;
+}
+.detail-stats > div { text-align: left; }
+.detail-stats dt {
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+.detail-stats dd {
+  margin: 0.1rem 0 0;
+  font-size: 1rem;
+  font-weight: 700;
 }
 .showcase-link {
   display: inline-block;
-  margin-top: 0.6rem;
+  margin-top: 0.8rem;
   font-size: 0.82rem;
   font-weight: 600;
   color: var(--accent);
@@ -282,6 +294,16 @@ a { color: var(--broad-blue); }
   font-size: 0.85rem;
   cursor: pointer;
 }
+/* Quick presets at the top of the column popover. */
+.cols-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  padding-bottom: 0.5rem;
+  margin-bottom: 0.25rem;
+  border-bottom: 1px solid var(--border);
+}
+.btn-ghost-sm { padding: 0.25rem 0.5rem; font-size: 0.76rem; }
 
 .show-more-wrap { text-align: center; margin-top: 1.1rem; }
 
@@ -417,7 +439,20 @@ input[type='text']:focus, input[type='number']:focus, select:focus {
 .data-table tbody tr { transition: background 0.12s; }
 .data-table tbody tr:nth-child(even) { background: var(--surface); }
 .data-table tbody tr:hover { background: var(--accent-weak); }
-.data-table tbody tr.clickable { cursor: pointer; }
+/* Only the phenotype name navigates; the rest of the row is inert. */
+.row-link {
+  appearance: none;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  text-align: left;
+  color: var(--accent);
+  font-weight: 600;
+  cursor: pointer;
+}
+.row-link:hover { text-decoration: underline; }
 
 /* Horizontal/vertical scroll container so a wide table (many optional columns)
    scrolls instead of widening the page; header and first column stay pinned. */
@@ -438,6 +473,23 @@ input[type='text']:focus, input[type='number']:focus, select:focus {
 .data-table tbody tr:nth-child(even) td:first-child { background: var(--surface); }
 .data-table tbody tr:hover td:first-child { background: var(--accent-weak); }
 .data-table thead th:first-child { z-index: 3; } /* top-left corner above both */
+
+/* Spanning group-title row above the sortable label row. Both header rows are
+   sticky: the group row pins at top:0, the label row just below it. */
+.data-table thead .group-row th {
+  top: 0;
+  z-index: 2;
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-align: center;
+  color: var(--text-muted);
+  cursor: default;
+  padding: 0.3rem 0.7rem;
+}
+.data-table thead .group-row th:hover { color: var(--text-muted); }
+.data-table thead tr:not(.group-row) th { top: 1.5rem; }
+/* Subtle separator between column clusters (rg / partner trait / male / female). */
+.data-table .col-group-sep { border-left: 1px solid var(--border); }
 
 /* Sex symbols (♂/♀) on optional column headers — large enough to read at a glance. */
 .col-sex {
