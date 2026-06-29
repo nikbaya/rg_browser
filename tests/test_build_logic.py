@@ -186,7 +186,8 @@ def test_category_for_fallback(synthetic_schema):
 
 def test_h2_resolver_scale_selection(tmp_path, monkeypatch):
     # Binary trait -> liability scale; quantitative -> observed; bad value -> NaN.
-    # Also surfaces the h2 p-value and Neff per phenotype.
+    # Also surfaces the h2 p-value and Neff per phenotype. With no "sex" column,
+    # every row is treated as both_sexes.
     cols = ["phenotype", "h2_liability", "h2_observed", "h2_p", "Neff", "isBinary"]
     rows = [
         "QUANT\t0.20\t0.10\t1e-20\t360000\tFALSE",  # quantitative -> observed (0.10)
@@ -198,9 +199,53 @@ def test_h2_resolver_scale_selection(tmp_path, monkeypatch):
     monkeypatch.setattr(build_data, "download_topline_h2", lambda: str(path))
 
     stats = build_data.h2_resolver()
-    assert stats["QUANT"]["h2"] == 0.10
-    assert stats["BIN"]["h2"] == 0.30
-    assert math.isnan(stats["BADVAL"]["h2"])
-    assert stats["QUANT"]["h2_p"] == 1e-20
-    assert stats["QUANT"]["neff"] == 360000
-    assert math.isnan(stats["BADVAL"]["neff"])
+    assert stats["QUANT"]["both_sexes"]["h2"] == 0.10
+    assert stats["BIN"]["both_sexes"]["h2"] == 0.30
+    assert math.isnan(stats["BADVAL"]["both_sexes"]["h2"])
+    assert stats["QUANT"]["both_sexes"]["h2_p"] == 1e-20
+    assert stats["QUANT"]["both_sexes"]["neff"] == 360000
+    assert math.isnan(stats["BADVAL"]["both_sexes"]["neff"])
+
+
+def test_h2_resolver_splits_by_sex(tmp_path, monkeypatch):
+    # One phenotype with both_sexes + male + female rows must be keyed per sex.
+    cols = ["phenotype", "h2_liability", "h2_observed", "h2_p", "Neff", "isBinary", "sex"]
+    rows = [
+        "P\t0.20\t0.10\t1e-20\t360000\tFALSE\tboth_sexes",
+        "P\t0.25\t0.12\t1e-10\t180000\tFALSE\tmale",
+        "P\t0.18\t0.09\t1e-12\t190000\tFALSE\tfemale",
+        "Q\t0.40\t0.30\t1e-5\t120000\tTRUE\tfemale",  # only female
+    ]
+    path = tmp_path / "topline.tsv"
+    path.write_text("\t".join(cols) + "\n" + "\n".join(rows) + "\n", encoding="utf-8")
+    monkeypatch.setattr(build_data, "download_topline_h2", lambda: str(path))
+
+    stats = build_data.h2_resolver()
+    assert stats["P"]["both_sexes"]["h2"] == 0.10
+    assert stats["P"]["male"]["h2"] == 0.12   # observed scale (not binary)
+    assert stats["P"]["female"]["h2"] == 0.09
+    assert set(stats["Q"].keys()) == {"female"}
+    assert stats["Q"]["female"]["h2"] == 0.40  # binary -> liability
+
+
+def test_parse_sex_matrices_overlay(tmp_path):
+    # A sex file overlaid on a canonical 4-phenotype index (A,B,C,D). The sex
+    # file covers A,B,C (and an out-of-universe Z, which is dropped); D is absent.
+    id_to_idx = {"A": 0, "B": 1, "C": 2, "D": 3}
+    lines = ["\t".join(HEADER)]
+    lines.append(_row("B", "A", 0.6, 0.1, "1e-6", 0.2, "Pheno A", "Pheno B"))
+    lines.append(_row("C", "B", -0.4, 0.2, "1e-3", 0.3, "Pheno B", "Pheno C"))
+    lines.append(_row("Z", "A", 0.9, 0.1, "1e-8", 0.2, "Pheno A", "Pheno Z"))  # dropped
+    path = tmp_path / "geno_correlation_male_sig.r2"
+    path.write_text("\n".join(lines) + "\n")
+
+    rg, se, nlogp = build_data.parse_sex_matrices(str(path), id_to_idx)
+    assert rg.shape == (4, 4)
+    assert rg[0, 1] == rg[1, 0] == pytest.approx(0.6)
+    assert rg[1, 2] == rg[2, 1] == pytest.approx(-0.4)
+    # Present phenotypes (A,B,C) get a unit diagonal; absent D stays NaN.
+    assert rg[0, 0] == 1.0 and rg[1, 1] == 1.0 and rg[2, 2] == 1.0
+    assert np.isnan(rg[3, 3])
+    assert np.all(np.isnan(rg[3]))            # D row entirely absent
+    # Out-of-universe Z never lands in the matrix (no 5th row exists).
+    assert nlogp[0, 1] == pytest.approx(-math.log10(1e-6))

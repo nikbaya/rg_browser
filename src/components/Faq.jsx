@@ -19,8 +19,52 @@ const ITEMS = [
       <p>
         rg ranges from <strong>−1</strong> (opposite genetic effects) through <strong>0</strong>{' '}
         (no shared genetics) to <strong>+1</strong> (identical genetic basis). The diverging color
-        scale runs cornflower blue (negative) → white (zero) → coral (positive).
+        scale runs blue (negative) → white (zero) → red (positive).
       </p>
+    ),
+  },
+  {
+    q: 'What does each column in the results table mean?',
+    a: (
+      <>
+        <p>
+          The phenotype detail table can show the following columns (toggle them with the{' '}
+          <strong>Columns ▾</strong> menu). "Partner" refers to the phenotype each row is
+          correlated <em>with</em>; the seed phenotype is the one named at the top of the page.
+        </p>
+        <ul>
+          <li><strong>Correlated phenotype</strong> — the partner trait's description.</li>
+          <li><strong>Category</strong> — the partner trait's UK Biobank category.</li>
+          <li><strong><span class="lc">rg</span></strong> — genetic correlation between the seed and partner (both sexes).</li>
+          <li><strong><span class="lc">|rg|</span></strong> — absolute value of rg, for ranking by strength regardless of sign.</li>
+          <li><strong><span class="lc">rg SE</span></strong> — standard error of the rg estimate.</li>
+          <li><strong><span class="lc">rg z</span></strong> — z-score, rg ÷ SE.</li>
+          <li><strong><span class="lc">rg p</span></strong> — p-value for the test of no genetic correlation.</li>
+          <li><strong><span class="lc">h²</span></strong> — SNP heritability of the <em>partner</em> trait (both sexes).</li>
+          <li><strong><span class="lc">h² p</span></strong> — p-value of the partner's heritability estimate.</li>
+          <li><strong><span class="lc">Neff</span></strong> — effective sample size for the partner trait.</li>
+        </ul>
+        <p>
+          Optional <strong>male-specific</strong> (♂) and <strong>female-specific</strong> (♀)
+          columns mirror the rg statistics, computed from sex-stratified GWAS:
+        </p>
+        <ul>
+          <li><strong><span class="lc">rg</span> ♂ / ♀</strong> — genetic correlation in the male / female analysis.</li>
+          <li><strong><span class="lc">rg SE</span> ♂ / ♀</strong> — its standard error.</li>
+          <li><strong><span class="lc">rg z</span> ♂ / ♀</strong> — its z-score.</li>
+          <li><strong><span class="lc">rg p</span> ♂ / ♀</strong> — its p-value.</li>
+          <li>
+            <strong><span class="lc">h²</span> ♂ / ♀</strong> — the partner trait's sex-specific SNP
+            heritability, shown only for the phenotypes where the topline analysis computed it
+            ("—" otherwise).
+          </li>
+        </ul>
+        <p>
+          A blank male/female correlation means the pair was not significant in that stratum. The
+          main views (heatmap, network, search) stay focused on the both-sexes correlations; the
+          sex-specific values are available as these optional columns and in the Pairwise lookup.
+        </p>
+      </>
     ),
   },
   {

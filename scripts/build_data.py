@@ -8,11 +8,14 @@ heritability results (h2_results/ukb31063_topline_h2_4203.tsv), then emits,
 into public/data/:
 
   phenotypes.json   - per-phenotype metadata in clustered leaf order
-                      (h2 = topline liability-scale for binary, observed otherwise)
+                      (h2 = topline liability-scale for binary, observed otherwise;
+                      optional h2_male/h2_female where sex-specific topline exists)
   rg.f32            - 677x677 Float32 matrix of genetic correlations (row-major)
   se.f32            - 677x677 Float32 matrix of standard errors
   nlogp.f32         - 677x677 Float32 matrix of -log10(p)
-  hierarchy.json    - dendrogram (for the radial tree) + strong-edge list
+  rg_male/female.f32, se_*, nlogp_*  - the same matrices for the male/female
+                      strata, overlaid on the canonical both-sexes index
+  hierarchy.json    - dendrogram (for the radial tree) + both-sexes strong-edge list
 
 The raw text is ~45MB; the binary matrices are ~1.8MB each, so the whole
 end-user payload is only a few MB. Run once (or whenever the source changes):
@@ -32,10 +35,19 @@ import numpy as np
 from scipy.cluster.hierarchy import linkage, leaves_list, fcluster
 from scipy.spatial.distance import squareform
 
-SOURCE_URL = (
-    "https://raw.githubusercontent.com/astheeggeggs/UKBB_ldsc_r2/"
-    "master/r2_results/geno_correlation_sig.r2"
+BASE_R2_URL = (
+    "https://raw.githubusercontent.com/astheeggeggs/UKBB_ldsc_r2/master/r2_results/"
 )
+# The three sex strata. "both_sexes" is the canonical universe: its 677
+# phenotypes and clustering define the layout; male/female values are overlaid
+# onto the same index space. The male/female files have the same columns minus
+# r2p (we parse by header name, so that's fine).
+SEX_FILES = {
+    "both_sexes": "geno_correlation_sig.r2",
+    "male": "geno_correlation_male_sig.r2",
+    "female": "geno_correlation_female_sig.r2",
+}
+SOURCE_URL = BASE_R2_URL + SEX_FILES["both_sexes"]  # kept for back-compat
 
 # UK Biobank Data Showcase schema downloads (TSV, latin-1 encoded). Used to map
 # each phenotype's UKBB field id to a human-meaningful category.
@@ -54,9 +66,14 @@ TOPLINE_H2_URL = (
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RAW_DIR = os.path.join(ROOT, "data", "raw")
-RAW_PATH = os.path.join(RAW_DIR, "geno_correlation_sig.r2")
+RAW_PATHS = {sex: os.path.join(RAW_DIR, fname) for sex, fname in SEX_FILES.items()}
+RAW_PATH = RAW_PATHS["both_sexes"]  # canonical both-sexes source (tests use this)
 TOPLINE_H2_PATH = os.path.join(RAW_DIR, "ukb_topline_h2.tsv")
 OUT_DIR = os.path.join(ROOT, "public", "data")
+
+# File-name suffix per sex for the emitted matrices (both-sexes keeps no suffix
+# so rg.f32/se.f32/nlogp.f32 stay backwards compatible).
+SEX_SUFFIX = {"both_sexes": "", "male": "_male", "female": "_female"}
 
 # Threshold for which pairs become drawn (bundled) edges in the radial viz.
 EDGE_RG_THRESHOLD = 0.5
@@ -130,13 +147,17 @@ FALLBACK_CATEGORY = "Other"
 
 
 def download_source():
+    """Cache-download the both-sexes, male, and female genetic-correlation files."""
     os.makedirs(RAW_DIR, exist_ok=True)
-    if os.path.exists(RAW_PATH) and os.path.getsize(RAW_PATH) > 0:
-        print(f"  source cached: {RAW_PATH}")
-        return
-    print(f"  downloading {SOURCE_URL} ...")
-    urllib.request.urlretrieve(SOURCE_URL, RAW_PATH)
-    print(f"  saved {os.path.getsize(RAW_PATH)/1e6:.1f} MB -> {RAW_PATH}")
+    for sex, fname in SEX_FILES.items():
+        path = RAW_PATHS[sex]
+        if os.path.exists(path) and os.path.getsize(path) > 0:
+            print(f"  source cached ({sex}): {path}")
+            continue
+        url = BASE_R2_URL + fname
+        print(f"  downloading {url} ...")
+        urllib.request.urlretrieve(url, path)
+        print(f"  saved {os.path.getsize(path)/1e6:.1f} MB -> {path}")
 
 
 def download_schema():
@@ -168,11 +189,13 @@ def download_topline_h2():
 
 
 def h2_resolver():
-    """Map phenotype id -> topline heritability stats: SNP h2, its p-value, and
-    the effective sample size (Neff).
+    """Map phenotype id -> {sex -> heritability stats} (SNP h2, its p-value, and
+    the effective sample size Neff), where sex is one of both_sexes/male/female.
 
-    Binary traits use the liability scale for h2; quantitative traits use the
-    observed scale. Each numeric field is NaN when non-numeric in the source.
+    The topline file carries one row per (phenotype, sex); rows with no "sex"
+    column are treated as both_sexes. Binary traits use the liability scale for
+    h2; quantitative traits use the observed scale. Each numeric field is NaN
+    when non-numeric in the source.
     """
     import csv
 
@@ -189,7 +212,8 @@ def h2_resolver():
                 except (ValueError, KeyError):
                     return float("nan")
 
-            stats[r["phenotype"]] = {
+            sex = (r.get("sex") or "both_sexes").strip() or "both_sexes"
+            stats.setdefault(r["phenotype"], {})[sex] = {
                 "h2": fnum(h2col),
                 "h2_p": fnum("h2_p"),
                 "neff": fnum("Neff"),
@@ -287,6 +311,56 @@ def parse_raw():
     return ids, desc, rg, se, nlogp
 
 
+def parse_sex_matrices(path, id_to_idx):
+    """Parse a sex-stratified rg file onto the canonical both-sexes index space.
+
+    Returns symmetric (n, n) rg/se/nlogp matrices over the canonical 677
+    phenotypes. Pairs whose phenotypes are outside the canonical universe are
+    dropped (e.g. female-only phenotypes absent from the both-sexes file).
+    Cells for pairs not present in this sex stay NaN; the diagonal is set to
+    1.0/0.0 only for phenotypes that actually appear in this sex's file, so a
+    phenotype with no sex-specific data renders as an empty row/column.
+    """
+    n = len(id_to_idx)
+    rg = np.full((n, n), np.nan, dtype=np.float64)
+    se = np.full((n, n), np.nan, dtype=np.float64)
+    nlogp = np.full((n, n), np.nan, dtype=np.float64)
+    present = set()
+    dropped = 0
+    with open(path, "r") as fh:
+        header = fh.readline().rstrip("\n").split("\t")
+        col = {name: k for k, name in enumerate(header)}
+        for line in fh:
+            f = line.rstrip("\n").split("\t")
+            if len(f) < len(header):
+                continue
+            p2, p1 = f[col["p2"]], f[col["p1"]]
+            if p1 not in id_to_idx or p2 not in id_to_idx:
+                dropped += 1
+                continue
+            i, j = id_to_idx[p1], id_to_idx[p2]
+            present.add(i)
+            present.add(j)
+
+            def num(name):
+                try:
+                    return float(f[col[name]])
+                except ValueError:
+                    return float("nan")
+
+            p = num("p")
+            rg[i, j] = rg[j, i] = num("rg")
+            se[i, j] = se[j, i] = num("se")
+            nl = -math.log10(p) if p and p > 0 else float("nan")
+            nlogp[i, j] = nlogp[j, i] = nl
+    for i in present:
+        rg[i, i] = 1.0
+        se[i, i] = 0.0
+    print(f"  overlaid {path.split('/')[-1]}: {len(present)} phenotypes present, "
+          f"{dropped} pairs dropped (outside canonical universe)")
+    return rg, se, nlogp
+
+
 def cluster_order(rg):
     """Average-linkage hierarchical clustering on distance = 1 - rg.
 
@@ -350,16 +424,27 @@ def main():
     download_source()
     ids, desc, rg, se, nlogp = parse_raw()
     n = len(ids)
+    id_to_idx = {pid: k for k, pid in enumerate(ids)}
 
+    # Overlay the male/female strata onto the canonical both-sexes index space.
+    sex_mats = {"both_sexes": (rg, se, nlogp)}
+    for sex in ("male", "female"):
+        sex_mats[sex] = parse_sex_matrices(RAW_PATHS[sex], id_to_idx)
+
+    # Clustering/order is computed once from the both-sexes matrix and reused for
+    # every sex, so the same cell maps to the same pair across the toggle.
     order, Z = cluster_order(rg)
     order_pos = [0] * n          # original index -> position in clustered order
     for pos, orig in enumerate(order):
         order_pos[orig] = pos
 
     perm = np.array(order)
-    rg_o = rg[np.ix_(perm, perm)]
-    se_o = se[np.ix_(perm, perm)]
-    nlogp_o = nlogp[np.ix_(perm, perm)]
+    # Reorder each sex's matrices into clustered leaf order.
+    sex_mats_o = {
+        sex: tuple(m[np.ix_(perm, perm)] for m in mats)
+        for sex, mats in sex_mats.items()
+    }
+    rg_o, se_o, nlogp_o = sex_mats_o["both_sexes"]
 
     # Cut the dendrogram into flat clusters for the network view (color groups).
     flat = fcluster(Z, N_CLUSTERS, criterion="maxclust")  # labels by original index
@@ -373,24 +458,38 @@ def main():
     phenotypes = []
     for orig in order:
         pid = ids[orig]
-        st = topline.get(pid, {})
-        h2v = st.get("h2", float("nan"))
-        h2p = st.get("h2_p", float("nan"))
-        neff = st.get("neff", float("nan"))
-        phenotypes.append({
+        by_sex = topline.get(pid, {})
+        both = by_sex.get("both_sexes", {})
+        h2v = both.get("h2", float("nan"))
+        h2p = both.get("h2_p", float("nan"))
+        neff = both.get("neff", float("nan"))
+        entry = {
             "id": pid,
             "description": desc.get(pid, pid),
-            "h2": None if math.isnan(h2v) else round(h2v, 4),
+            "h2": None if math.isnan(h2v) else round(h2v, 4),  # both-sexes (canonical)
             "h2_p": None if math.isnan(h2p) else h2p,        # p-value of the h2 estimate
             "neff": None if math.isnan(neff) else int(round(neff)),  # effective sample size
             "c": int(flat[orig]) - 1,  # 0-based cluster id
             "cat": category_for(pid),  # human-readable UKBB category
-        })
+        }
+        # Sex-specific topline h2 exists for only a handful of phenotypes; emit
+        # the compact fields only when present so phenotypes.json stays small.
+        # The frontend falls back to the both-sexes value otherwise.
+        for sex in ("male", "female"):
+            s = by_sex.get(sex)
+            if s and not math.isnan(s.get("h2", float("nan"))):
+                entry[f"h2_{sex}"] = round(s["h2"], 4)
+                sp = s.get("h2_p", float("nan"))
+                sn = s.get("neff", float("nan"))
+                entry[f"h2_{sex}_p"] = None if math.isnan(sp) else sp
+                entry[f"neff_{sex}"] = None if math.isnan(sn) else int(round(sn))
+        phenotypes.append(entry)
 
     # Build the tree on clustered metadata (leaf k in linkage == original index k).
     leaf_meta = [{"id": ids[k], "description": desc.get(ids[k], ids[k])}
                  for k in range(n)]
     tree = linkage_to_tree(Z, n, leaf_meta)
+    # The network view stays focused on both-sexes correlations.
     edges = strong_edges(rg, order_pos)
 
     # Per-cluster metadata: size + a representative (most-connected) phenotype.
@@ -427,9 +526,12 @@ def main():
                   fh, separators=(",", ":"))
     print("  wrote hierarchy.json")
 
-    write_f32(os.path.join(OUT_DIR, "rg.f32"), rg_o)
-    write_f32(os.path.join(OUT_DIR, "se.f32"), se_o)
-    write_f32(os.path.join(OUT_DIR, "nlogp.f32"), nlogp_o)
+    # Matrices for every sex (both-sexes keeps the unsuffixed names).
+    for sex, (rgm, sem, nlm) in sex_mats_o.items():
+        sfx = SEX_SUFFIX[sex]
+        write_f32(os.path.join(OUT_DIR, f"rg{sfx}.f32"), rgm)
+        write_f32(os.path.join(OUT_DIR, f"se{sfx}.f32"), sem)
+        write_f32(os.path.join(OUT_DIR, f"nlogp{sfx}.f32"), nlm)
 
     # Spot-check: Food weight x Iron should be rg ~ 0.788 in the raw data.
     print("Done. n =", n)

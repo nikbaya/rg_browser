@@ -78,6 +78,28 @@ a { color: var(--broad-blue); }
   min-width: 180px;
 }
 
+/* Placeholder shown in a sex-specific cell while its matrices load. */
+.cell-loading { color: var(--text-muted); }
+
+/* Grouped column-visibility popover (base / male / female). */
+.cols-group + .cols-group {
+  margin-top: 0.35rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid var(--border);
+}
+.cols-group-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  padding: 0.15rem 0.2rem 0.25rem;
+}
+
+/* Pair-lookup sex comparison table cells sit a touch tighter. */
+.pair-table th:first-child,
+.pair-table td:first-child { text-align: left; }
+
 .main {
   flex: 1;
   width: 100%;
@@ -242,6 +264,8 @@ a { color: var(--broad-blue); }
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   white-space: nowrap;
+  max-height: 70vh;
+  overflow-y: auto;
 }
 .cols-option {
   display: flex;
@@ -372,7 +396,7 @@ input[type='text']:focus, input[type='number']:focus, select:focus {
   position: sticky;
   top: 0;
   background: var(--bg);
-  z-index: 1;
+  z-index: 2;            /* header sits above the sticky first column */
   white-space: nowrap;
 }
 .data-table th:hover { color: var(--accent); }
@@ -386,6 +410,34 @@ input[type='text']:focus, input[type='number']:focus, select:focus {
 .data-table tbody tr:nth-child(even) { background: var(--surface); }
 .data-table tbody tr:hover { background: var(--accent-weak); }
 .data-table tbody tr.clickable { cursor: pointer; }
+
+/* Horizontal/vertical scroll container so a wide table (many optional columns)
+   scrolls instead of widening the page; header and first column stay pinned. */
+.table-scroll {
+  max-width: 100%;
+  max-height: 75vh;
+  overflow: auto;
+}
+/* Pin the "Correlated phenotype" column when scrolling sideways. The background
+   must track row striping/hover so scrolled cells don't show through. */
+.data-table th:first-child,
+.data-table td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--bg);
+}
+.data-table tbody tr:nth-child(even) td:first-child { background: var(--surface); }
+.data-table tbody tr:hover td:first-child { background: var(--accent-weak); }
+.data-table thead th:first-child { z-index: 3; } /* top-left corner above both */
+
+/* Sex symbols (♂/♀) on optional column headers — large enough to read at a glance. */
+.col-sex {
+  font-size: 1.2em;
+  line-height: 1;
+  color: var(--text);
+  margin-left: 0.15em;
+}
 
 .rg-chip {
   display: inline-block;
@@ -558,6 +610,9 @@ input[type='text']:focus, input[type='number']:focus, select:focus {
   margin-bottom: 1.2rem;
 }
 .controls-row .field { flex: 1 1 220px; min-width: 0; }
+/* Pair pickers grow a "selected" line below the box; top-align so the two search
+   boxes stay level once one side is chosen. */
+.controls-row--top { align-items: flex-start; }
 
 /* Preserve scientific-notation case (rg, h², p, z) inside uppercased labels. */
 .lc { text-transform: none; }
@@ -728,10 +783,29 @@ input[type='text']:focus, input[type='number']:focus, select:focus {
   gap: 0.35rem 0.9rem;
   font-size: 0.78rem;
   color: var(--text-muted);
-  margin: 0.5rem 0 0;
+  margin: 0.5rem 0;
 }
 .cat-legend-title { font-weight: 700; }
-.cat-legend-item { display: inline-flex; align-items: center; gap: 0.35rem; }
+.cat-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 0.15rem 0.4rem;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.cat-legend-item:hover { background: var(--surface-2); color: var(--text); }
+.cat-legend-item.active {
+  background: var(--accent-weak);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 700;
+}
 .cat-swatch {
   display: inline-block;
   width: 12px;

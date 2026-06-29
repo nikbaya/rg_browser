@@ -14,7 +14,15 @@ import pytest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(ROOT, "public", "data")
-RAW_PATH = os.path.join(ROOT, "data", "raw", "geno_correlation_sig.r2")
+RAW_DIR = os.path.join(ROOT, "data", "raw")
+RAW_PATH = os.path.join(RAW_DIR, "geno_correlation_sig.r2")
+RAW_PATHS = {
+    "both_sexes": RAW_PATH,
+    "male": os.path.join(RAW_DIR, "geno_correlation_male_sig.r2"),
+    "female": os.path.join(RAW_DIR, "geno_correlation_female_sig.r2"),
+}
+# Emitted file-name suffix per sex (both-sexes is unsuffixed).
+SEX_SUFFIX = {"both_sexes": "", "male": "_male", "female": "_female"}
 
 
 @pytest.fixture(scope="session")
@@ -55,6 +63,28 @@ def nlogp(n):
     return _load_matrix("nlogp.f32", n)
 
 
+# Sex-stratified matrices (parametrize tests over these as needed).
+@pytest.fixture(scope="session", params=["male", "female"])
+def sex(request):
+    return request.param
+
+
+@pytest.fixture(scope="session")
+def sex_matrices(n):
+    """Map sex -> (rg, se, nlogp) for the male/female emitted matrices."""
+    out = {}
+    for s in ("male", "female"):
+        sfx = SEX_SUFFIX[s]
+        out[s] = tuple(_load_matrix(f"{name}{sfx}.f32", n)
+                       for name in ("rg", "se", "nlogp"))
+    return out
+
+
 @pytest.fixture(scope="session")
 def raw_path():
     return RAW_PATH
+
+
+@pytest.fixture(scope="session")
+def raw_paths():
+    return RAW_PATHS

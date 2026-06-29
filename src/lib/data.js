@@ -20,6 +20,11 @@ function dataUrl(file) {
   return `${import.meta.env.BASE_URL}data/${file}`;
 }
 
+// The sex-stratified strata available as optional columns. The browser stays
+// focused on both-sexes rg; these are overlaid only where the user opts in.
+export const SEX_STRATA = ['male', 'female'];
+const SEX_SUFFIX = { both_sexes: '', male: '_male', female: '_female' };
+
 export async function loadData() {
   if (cache) return cache;
 
@@ -43,8 +48,43 @@ export async function loadData() {
   const categories = hierarchy.categories || [];
   setCategories(categories);
 
-  cache = { n, phenotypes, hierarchy, categories, rg, se, nlogp, idToIndex };
+  cache = {
+    n, phenotypes, hierarchy, categories, rg, se, nlogp, idToIndex,
+    // Lazily-loaded male/female matrices, keyed by sex (for optional columns).
+    sexMatrices: {},
+  };
   return cache;
+}
+
+// Lazily fetch (and cache) the male/female rg/se/nlogp matrices for the optional
+// sex-specific columns. The initial payload stays at the both-sexes ~6 MB; each
+// sex's matrices (~5.5 MB) load only the first time a user enables its columns.
+export async function ensureSexMatrices(sex) {
+  if (!cache) throw new Error('ensureSexMatrices called before loadData');
+  if (sex === 'both_sexes') return { rg: cache.rg, se: cache.se, nlogp: cache.nlogp };
+  if (!SEX_SUFFIX.hasOwnProperty(sex)) throw new Error(`unknown sex: ${sex}`);
+  if (cache.sexMatrices[sex]) return cache.sexMatrices[sex];
+
+  const { n } = cache;
+  const sfx = SEX_SUFFIX[sex];
+  const [rg, se, nlogp] = await Promise.all([
+    fetchF32(dataUrl(`rg${sfx}.f32`), n),
+    fetchF32(dataUrl(`se${sfx}.f32`), n),
+    fetchF32(dataUrl(`nlogp${sfx}.f32`), n),
+  ]);
+  cache.sexMatrices[sex] = { rg, se, nlogp };
+  return cache.sexMatrices[sex];
+}
+
+// Per-pair stats { rg, se, z, p, nlogp } from an arbitrary {rg, se, nlogp} set.
+// Returns null when the pair has no genetic correlation in that stratum.
+export function statsFromMatrices(m, n, i, j) {
+  if (!m) return null;
+  const r = m.rg[i * n + j];
+  const s = m.se[i * n + j];
+  const nl = m.nlogp[i * n + j];
+  const z = s ? r / s : NaN;
+  return { rg: r, se: s, z, nlogp: nl, p: pFromNlogpZ(nl, z) };
 }
 
 // --- accessors (all take a loaded `data` object) ---

@@ -263,8 +263,8 @@ export function RadialBundle({ data, onSelect }) {
         Each thread links two phenotypes with a strong genetic correlation
         (<strong>|rg| ≥ {rgThreshold.toFixed(2)}</strong>), bundled along a tree built by
         clustering the full correlation matrix.{' '}
-        <strong style="color: var(--rg-pos)">Coral</strong> = positive,{' '}
-        <strong style="color: var(--rg-neg)">cornflower blue</strong> = negative. Hover a label to trace its
+        <strong style="color: var(--rg-pos)">Red</strong> = positive,{' '}
+        <strong style="color: var(--rg-neg)">blue</strong> = negative. Hover a label to trace its
         connections; click it to pin and explore.
       </p>
       <div class="viz-wrap card" style="padding: 0.5rem;">

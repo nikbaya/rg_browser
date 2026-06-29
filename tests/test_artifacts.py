@@ -14,13 +14,22 @@ DATA_DIR = os.path.join(
 )
 
 PHENO_KEYS = {"id", "description", "h2", "h2_p", "neff", "c", "cat"}
+# Optional sex-specific heritability fields, present only where topline h2 exists.
+PHENO_OPT_KEYS = {"h2_male", "h2_male_p", "neff_male",
+                  "h2_female", "h2_female_p", "neff_female"}
+
+MATRIX_NAMES = (
+    "rg.f32", "se.f32", "nlogp.f32",
+    "rg_male.f32", "se_male.f32", "nlogp_male.f32",
+    "rg_female.f32", "se_female.f32", "nlogp_female.f32",
+)
 
 
 # --- sizes / shape --------------------------------------------------------
 
 def test_matrix_file_sizes_match_n(n):
     expected = n * n * 4  # little-endian float32
-    for name in ("rg.f32", "se.f32", "nlogp.f32"):
+    for name in MATRIX_NAMES:
         size = os.path.getsize(os.path.join(DATA_DIR, name))
         assert size == expected, f"{name}: {size} bytes, expected {expected}"
 
@@ -103,9 +112,33 @@ def test_rg_within_realistic_bounds(rg):
 
 # --- phenotype records ----------------------------------------------------
 
+def test_sex_matrix_invariants(sex_matrices):
+    # Each sex stratum overlays the canonical index: symmetric, rg/se share a
+    # NaN mask, diagonal is 1.0/0.0 for present phenotypes (NaN for absent),
+    # and no infinities.
+    for s, (rg, se, nlogp) in sex_matrices.items():
+        assert np.array_equal(rg, rg.T, equal_nan=True), f"{s} rg not symmetric"
+        assert np.array_equal(se, se.T, equal_nan=True), f"{s} se not symmetric"
+        assert np.array_equal(nlogp, nlogp.T, equal_nan=True), f"{s} nlogp not symmetric"
+        # rg and se mostly share a NaN mask, but the source has a few pairs with a
+        # blank rg yet a present se, so only require: wherever se is NaN, rg is too.
+        assert np.all(np.isnan(rg)[np.isnan(se)]), f"{s} se NaN where rg present"
+        diag = np.diag(rg)
+        present = ~np.isnan(diag)
+        assert np.all(diag[present] == 1.0), f"{s} present-diagonal not 1.0"
+        assert np.all(np.diag(se)[present] == 0.0), f"{s} present-diagonal se not 0.0"
+        for name, m in ((f"{s} rg", rg), (f"{s} se", se), (f"{s} nlogp", nlogp)):
+            assert not np.isinf(m).any(), f"{name} contains infinities"
+        # Sex strata are subsets of the both-sexes universe, so some phenotypes
+        # are absent (whole row/col NaN) — there must be at least one such gap.
+        assert present.sum() < rg.shape[0], f"{s} unexpectedly has no absent phenotypes"
+
+
 def test_phenotype_schema(phenotypes, n):
     for p in phenotypes:
-        assert set(p.keys()) == PHENO_KEYS, f"unexpected keys: {p.keys()}"
+        extra = set(p.keys()) - PHENO_KEYS
+        assert PHENO_KEYS <= set(p.keys()), f"missing required keys: {p.keys()}"
+        assert extra <= PHENO_OPT_KEYS, f"unexpected keys: {extra}"
         assert isinstance(p["id"], str) and p["id"], "id must be a non-empty str"
         assert isinstance(p["description"], str) and p["description"]
         assert isinstance(p["cat"], str) and p["cat"]
@@ -119,6 +152,14 @@ def test_phenotype_schema(phenotypes, n):
         neff = p["neff"]
         assert neff is None or (isinstance(neff, int) and not isinstance(neff, bool) and neff > 0), \
             f"neff invalid for {p['id']}: {neff}"
+        for s in ("male", "female"):
+            if f"h2_{s}" in p:  # present only where sex-specific topline exists
+                hv = p[f"h2_{s}"]
+                assert isinstance(hv, (int, float)) and 0 < hv <= 1, \
+                    f"h2_{s} out of range for {p['id']}: {hv}"
+                hp = p[f"h2_{s}_p"]
+                assert hp is None or (isinstance(hp, (int, float)) and 0 <= hp <= 1), \
+                    f"h2_{s}_p out of range for {p['id']}: {hp}"
 
 
 def test_phenotype_ids_unique(phenotypes, n):

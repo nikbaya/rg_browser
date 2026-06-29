@@ -64,6 +64,11 @@ def topline_h2():
     h2 = {}
     with open(path, encoding="utf-8", newline="") as fh:
         for r in csv.DictReader(fh, delimiter="\t"):
+            # The published h2 is the both_sexes stratum (the file also carries
+            # male/female rows for some phenotypes).
+            sex = (r.get("sex") or "both_sexes").strip() or "both_sexes"
+            if sex != "both_sexes":
+                continue
             binary = r["isBinary"].strip().lower() == "true"
             colname = "h2_liability" if binary else "h2_observed"
             try:
@@ -115,6 +120,61 @@ def test_every_published_value_matches_raw(raw_pairs, phenotypes, rg, se, nlogp)
         if len(mismatches) > 20:
             break
     assert not mismatches, "value mismatches vs raw source:\n" + "\n".join(mismatches)
+
+
+@pytest.fixture(scope="module")
+def sex_raw_pairs(raw_paths):
+    """{sex -> {frozenset({p1,p2}) -> (rg, se, p)}} for male/female sources."""
+    out = {}
+    for s in ("male", "female"):
+        path = raw_paths[s]
+        if not os.path.exists(path):
+            pytest.skip(f"raw sex source absent: {path} (expected in CI)")
+        pairs = {}
+        with open(path) as fh:
+            header = fh.readline().rstrip("\n").split("\t")
+            col = {name: k for k, name in enumerate(header)}
+
+            def num(f, name):
+                try:
+                    return float(f[col[name]])
+                except ValueError:
+                    return float("nan")
+
+            for line in fh:
+                f = line.rstrip("\n").split("\t")
+                if len(f) < len(header):
+                    continue
+                p1, p2 = f[col["p1"]], f[col["p2"]]
+                pairs[frozenset((p1, p2))] = (num(f, "rg"), num(f, "se"), num(f, "p"))
+        out[s] = pairs
+    return out
+
+
+def test_sex_matrices_match_raw(sex_raw_pairs, sex_matrices, phenotypes):
+    # Re-parse each sex source independently and confirm every emitted cell on
+    # the canonical index matches; pairs outside the canonical universe are
+    # dropped (never asserted against), matching the build.
+    pos = {p["id"]: i for i, p in enumerate(phenotypes)}
+    for s, pairs in sex_raw_pairs.items():
+        rg, se, nlogp = sex_matrices[s]
+        mismatches = []
+        for pair, (r, sd, p) in pairs.items():
+            ids = tuple(pair) if len(pair) == 2 else (next(iter(pair)),) * 2
+            if any(pid not in pos for pid in ids):
+                continue  # outside canonical universe -> dropped by build
+            a, b = pos[ids[0]], pos[ids[1]]
+            expect_nl = -math.log10(p) if (p and p > 0) else float("nan")
+            checks = (
+                ("rg", rg[a, b], r), ("se", se[a, b], sd),
+                ("nlogp", nlogp[a, b], expect_nl),
+            )
+            for field, got, want in checks:
+                if not _f32_eq(got, want):
+                    mismatches.append(f"[{s}] {ids[0]}/{ids[1]} {field}: {got!r} != {want!r}")
+            if len(mismatches) > 20:
+                break
+        assert not mismatches, "sex value mismatches vs raw:\n" + "\n".join(mismatches)
 
 
 def test_descriptions_match_raw(raw_pairs, phenotypes):

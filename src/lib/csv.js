@@ -1,5 +1,6 @@
 // CSV serialization + client-side download for correlation result tables.
 import { rowStats } from './filters.js';
+import { statsFromMatrices } from './data.js';
 
 // Escape a field for CSV: quote if it contains a comma, quote, or newline.
 function esc(v) {
@@ -23,18 +24,33 @@ const HEADER = [
   'se',
   'z',
   'p',
+  'h2_partner',
+  // Male/female strata (blank when the pair is absent in that stratum).
+  'rg_male',
+  'se_male',
+  'z_male',
+  'p_male',
+  'h2_partner_male',
+  'rg_female',
+  'se_female',
+  'z_female',
+  'p_female',
+  'h2_partner_female',
 ];
 
 // Serialize the given correlation rows (already filtered/sorted) for a seed
 // phenotype into a CSV string. `rows` is an array of { j, rg, ... } where j is
-// the partner phenotype index.
-export function rowsToCsv(data, seedIndex, rows) {
-  const { phenotypes } = data;
+// the partner phenotype index. `sexMats` is { male, female } of loaded matrices
+// (pass {} to leave the sex columns blank).
+export function rowsToCsv(data, seedIndex, rows, sexMats = {}) {
+  const { phenotypes, n } = data;
   const seed = phenotypes[seedIndex];
   const lines = [HEADER.join(',')];
   for (const row of rows) {
     const partner = phenotypes[row.j];
     const s = rowStats(data, seedIndex, row.j);
+    const m = sexMats.male ? statsFromMatrices(sexMats.male, n, seedIndex, row.j) : null;
+    const f = sexMats.female ? statsFromMatrices(sexMats.female, n, seedIndex, row.j) : null;
     lines.push(
       [
         esc(seed.id),
@@ -46,6 +62,17 @@ export function rowsToCsv(data, seedIndex, rows) {
         num(s.se),
         num(s.z),
         num(s.p),
+        num(partner.h2),
+        num(m && m.rg),
+        num(m && m.se),
+        num(m && m.z),
+        num(m && m.p),
+        num(partner.h2_male),
+        num(f && f.rg),
+        num(f && f.se),
+        num(f && f.z),
+        num(f && f.p),
+        num(partner.h2_female),
       ].join(',')
     );
   }

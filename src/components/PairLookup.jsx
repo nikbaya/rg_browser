@@ -1,5 +1,5 @@
-import { useState } from 'preact/hooks';
-import { pairStats, formatNum, formatP } from '../lib/data.js';
+import { useEffect, useState } from 'preact/hooks';
+import { pairStats, formatNum, formatP, ensureSexMatrices, statsFromMatrices } from '../lib/data.js';
 import { colorForRg, textOnRg } from '../lib/color.js';
 import { SearchBox } from './SearchBox.jsx';
 
@@ -26,20 +26,35 @@ function PhenotypePicker({ label, value, onChange, phenotypes }) {
 }
 
 export function PairLookup({ data, initial, initialB }) {
-  const { phenotypes } = data;
+  const { phenotypes, n } = data;
   const [a, setA] = useState(initial ?? null);
   const [b, setB] = useState(initialB ?? null);
+  const [sexMats, setSexMats] = useState({}); // { male, female }
 
-  const stats = a != null && b != null ? pairStats(data, a, b) : null;
+  // Load the male/female matrices for the sex comparison (this detailed view
+  // shows all three strata side by side).
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([ensureSexMatrices('male'), ensureSexMatrices('female')]).then(
+      ([male, female]) => { if (!cancelled) setSexMats({ male, female }); }
+    );
+    return () => { cancelled = true; };
+  }, []);
+
+  const ready = a != null && b != null && a !== b;
+  const both = ready ? pairStats(data, a, b) : null;
+  const male = ready && sexMats.male ? statsFromMatrices(sexMats.male, n, a, b) : null;
+  const female = ready && sexMats.female ? statsFromMatrices(sexMats.female, n, a, b) : null;
 
   return (
     <div>
       <p class="view-intro">
         Pick any two phenotypes to see the full LDSC statistics for that pair — genetic
-        correlation, standard error, z-score, p-value, and each trait's heritability.
+        correlation, standard error, z-score, p-value, and each trait's heritability —
+        for both sexes and, where available, the male- and female-specific analyses.
       </p>
 
-      <div class="controls-row">
+      <div class="controls-row controls-row--top">
         <PhenotypePicker label="Phenotype A" value={a} onChange={setA} phenotypes={phenotypes} />
         <PhenotypePicker label="Phenotype B" value={b} onChange={setB} phenotypes={phenotypes} />
       </div>
@@ -48,7 +63,7 @@ export function PairLookup({ data, initial, initialB }) {
         <p style="color: var(--text-muted);">Pick two different phenotypes.</p>
       )}
 
-      {stats && a !== b && (
+      {both && (
         <div>
           <div
             class="card"
@@ -60,9 +75,9 @@ export function PairLookup({ data, initial, initialB }) {
             </div>
             <span
               class="rg-chip"
-              style={`background:${colorForRg(stats.rg)};color:${textOnRg(stats.rg)};font-size:1rem;min-width:5em;padding:0.3rem 0.7rem;`}
+              style={`background:${colorForRg(both.rg)};color:${textOnRg(both.rg)};font-size:1rem;min-width:5em;padding:0.3rem 0.7rem;`}
             >
-              rg {formatNum(stats.rg)}
+              rg {formatNum(both.rg)}
             </span>
             <div style="flex:1 1 200px; text-align:right;">
               <div style="font-weight:700;">{phenotypes[b].description}</div>
@@ -70,25 +85,58 @@ export function PairLookup({ data, initial, initialB }) {
             </div>
           </div>
 
-          <div class="stat-grid">
-            <Stat label={<>Genetic corr. (<span class="lc">rg</span>)</>} value={formatNum(stats.rg)} />
-            <Stat label={<>Std. error <span class="lc">(rg)</span></>} value={formatNum(stats.se)} />
-            <Stat label={<><span class="lc">z</span>-score <span class="lc">(rg)</span></>} value={formatNum(stats.z)} />
-            <Stat label={<><span class="lc">p</span>-value <span class="lc">(rg)</span></>} value={formatP(stats.p)} />
-            <Stat label={<span class="lc">h² · {phenotypes[a].description}</span>} value={formatNum(stats.h2_i)} />
-            <Stat label={<span class="lc">h² · {phenotypes[b].description}</span>} value={formatNum(stats.h2_j)} />
-          </div>
+          <table class="data-table pair-table">
+            <thead>
+              <tr>
+                <th>Statistic</th>
+                <th class="num">Both sexes</th>
+                <th class="num">Male</th>
+                <th class="num">Female</th>
+              </tr>
+            </thead>
+            <tbody>
+              <StatRow label={<>Genetic corr. (<span class="lc">rg</span>)</>}
+                both={formatNum(both.rg)} male={sexNum(male, 'rg', sexMats.male)} female={sexNum(female, 'rg', sexMats.female)} />
+              <StatRow label={<>Std. error <span class="lc">(rg)</span></>}
+                both={formatNum(both.se)} male={sexNum(male, 'se', sexMats.male)} female={sexNum(female, 'se', sexMats.female)} />
+              <StatRow label={<><span class="lc">z</span>-score <span class="lc">(rg)</span></>}
+                both={formatNum(both.z)} male={sexNum(male, 'z', sexMats.male)} female={sexNum(female, 'z', sexMats.female)} />
+              <StatRow label={<><span class="lc">p</span>-value <span class="lc">(rg)</span></>}
+                both={formatP(both.p)} male={sexP(male, sexMats.male)} female={sexP(female, sexMats.female)} />
+              <StatRow label={<><span class="lc">h²</span> · {phenotypes[a].description}</>}
+                both={formatNum(phenotypes[a].h2)} male={formatNum(phenotypes[a].h2_male)} female={formatNum(phenotypes[a].h2_female)} />
+              <StatRow label={<><span class="lc">h²</span> · {phenotypes[b].description}</>}
+                both={formatNum(phenotypes[b].h2)} male={formatNum(phenotypes[b].h2_male)} female={formatNum(phenotypes[b].h2_female)} />
+            </tbody>
+          </table>
+          <p class="view-hint" style="margin-top:0.6rem;">
+            Sex-specific h² is shown only for the phenotypes where the topline analysis
+            computed it; "—" elsewhere. A blank male/female correlation means the pair
+            was not significant in that stratum.
+          </p>
         </div>
       )}
     </div>
   );
 }
 
-function Stat({ label, value }) {
+// Format a sex-stratum numeric field; '…' until matrices load.
+function sexNum(stats, key, loaded) {
+  if (!loaded) return '…';
+  return formatNum(stats ? stats[key] : NaN);
+}
+function sexP(stats, loaded) {
+  if (!loaded) return '…';
+  return formatP(stats ? stats.p : NaN);
+}
+
+function StatRow({ label, both, male, female }) {
   return (
-    <div class="stat">
-      <div class="stat-label">{label}</div>
-      <div class="stat-value">{value}</div>
-    </div>
+    <tr>
+      <td>{label}</td>
+      <td class="num">{both}</td>
+      <td class="num">{male}</td>
+      <td class="num">{female}</td>
+    </tr>
   );
 }

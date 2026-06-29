@@ -16,7 +16,36 @@ Styled per the Broad Institute brand (not an official Broad product).
   correlations (|rg| ≥ 0.5), bundled along a tree from clustering the full matrix.
 - **Heatmap** — the clustered 677×677 correlation matrix rendered on a canvas.
 - **Search & explore** — find a phenotype and browse its ranked top correlations.
-- **Pairwise lookup** — full LDSC stats (rg, se, z, p, h²) for any two phenotypes.
+- **Pairwise lookup** — full LDSC stats (rg, se, z, p, h²) for any two phenotypes, for both
+  sexes and, where available, the male- and female-specific analyses.
+
+## Results table columns
+
+The phenotype detail table is column-configurable (the **Columns ▾** menu). Every column is
+also explained in the in-app **FAQ** — **when adding or renaming a column, update the FAQ
+entry ("What does each column in the results table mean?") so every field stays documented.**
+
+Base columns (both sexes):
+
+| Column | Meaning |
+| --- | --- |
+| Correlated phenotype | The partner trait's description |
+| Category | The partner trait's UK Biobank category |
+| `rg` | Genetic correlation between seed and partner |
+| `\|rg\|` | Absolute rg (rank by strength regardless of sign) |
+| `rg SE` | Standard error of rg |
+| `rg z` | z-score, rg ÷ SE |
+| `rg p` | p-value for the test of no genetic correlation |
+| `h²` | SNP heritability of the partner trait |
+| `h² p` | p-value of the partner's h² estimate |
+| `Neff` | Effective sample size for the partner trait |
+
+Optional male (♂) / female (♀) columns, from the sex-stratified GWAS, mirror the rg statistics
+(`rg`, `rg SE`, `rg z`, `rg p`) plus the partner's sex-specific `h²`. Sex-specific h² appears
+only where the topline analysis computed it ("—" otherwise); a blank sex correlation means the
+pair was not significant in that stratum. The main views stay focused on both-sexes rg; these
+columns (and the Pairwise lookup) surface the sex-specific values. The sex matrices load lazily
+the first time a sex column is shown.
 
 ## Architecture
 

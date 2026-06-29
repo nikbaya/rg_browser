@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { topCorrelations, formatNum, formatP } from '../lib/data.js';
+import { topCorrelations, formatNum, formatP, ensureSexMatrices, statsFromMatrices } from '../lib/data.js';
 import { colorForCategory, textOnColor } from '../lib/color.js';
 import { phenotypePasses, pairPasses, rowStats } from '../lib/filters.js';
 import { rowsToCsv, downloadCsv } from '../lib/csv.js';
-import { ResultsTable, COLUMNS, defaultVisibleColumns } from './ResultsTable.jsx';
+import { ResultsTable, COLUMNS, defaultVisibleColumns, sexesNeeded } from './ResultsTable.jsx';
 import { RangeSlider } from './RangeSlider.jsx';
 
 const PAGE = 50; // rows revealed initially and per "Show more" click
@@ -31,7 +31,15 @@ const H2_TICKS = [
 // Columns sort ascending by default, except these which start descending
 // (largest/most-relevant first). Re-clicking a column flips the direction.
 const defaultDir = (key) =>
-  key === 'name' || key === 'cat' || key === 'p' || key === 'h2p' ? 'asc' : 'desc';
+  ['name', 'cat', 'p', 'h2p', 'p_m', 'p_f'].includes(key) ? 'asc' : 'desc';
+
+// Grouping for the column-visibility popover: base columns, then the optional
+// male- and female-specific strata.
+const COLUMN_GROUPS = [
+  { title: null, cols: COLUMNS.filter((c) => !c.always && !c.group) },
+  { title: 'Male-specific', cols: COLUMNS.filter((c) => c.group === 'male') },
+  { title: 'Female-specific', cols: COLUMNS.filter((c) => c.group === 'female') },
+];
 
 // Detail page for one phenotype: metadata header, filters, and its ranked top
 // genetic correlations.
@@ -49,7 +57,21 @@ export function PhenotypeDetail({ data, index, onSelect }) {
   const [visible, setVisible] = useState(() => defaultVisibleColumns());
   const [colsOpen, setColsOpen] = useState(false);
   const [shown, setShown] = useState(PAGE);
+  const [sexMats, setSexMats] = useState({}); // { male, female } loaded on demand
   const colsRef = useRef(null);
+
+  // Load the male/female matrices lazily whenever a sex-specific column is shown.
+  useEffect(() => {
+    const needed = sexesNeeded(visible);
+    let cancelled = false;
+    needed.forEach((s) => {
+      if (sexMats[s]) return;
+      ensureSexMatrices(s).then((m) => {
+        if (!cancelled) setSexMats((prev) => (prev[s] ? prev : { ...prev, [s]: m }));
+      });
+    });
+    return () => { cancelled = true; };
+  }, [visible, sexMats]);
 
   // Collapse back to the first page when the seed or any filter changes.
   useEffect(() => {
@@ -79,8 +101,14 @@ export function PhenotypeDetail({ data, index, onSelect }) {
   // per seed). Cheap matrix reads, not full pairStats allocations.
   const allRows = useMemo(() => {
     const base = topCorrelations(data, index, data.n);
-    return base.map((r) => ({ j: r.j, ...rowStats(data, index, r.j) }));
-  }, [data, index]);
+    return base.map((r) => {
+      const row = { j: r.j, ...rowStats(data, index, r.j) };
+      // Sex strata are left undefined (shown as "…") until their matrices load.
+      if (sexMats.male) row.male = statsFromMatrices(sexMats.male, data.n, index, r.j);
+      if (sexMats.female) row.female = statsFromMatrices(sexMats.female, data.n, index, r.j);
+      return row;
+    });
+  }, [data, index, sexMats]);
 
   const pMax = pExp === 0 ? '' : Math.pow(10, -pExp);
 
@@ -91,24 +119,52 @@ export function PhenotypeDetail({ data, index, onSelect }) {
     const out = allRows.filter(
       (row) => phenotypePasses(phenotypes[row.j], pf) && pairPasses(row, cf)
     );
-    // Ascending base comparators; direction applied via `sign`.
-    const num = (x) => (Number.isNaN(x) ? Infinity : x);
-    const base = {
-      rg: (a, b) => a.rg - b.rg,
-      abs: (a, b) => Math.abs(a.rg) - Math.abs(b.rg),
-      name: (a, b) => phenotypes[a.j].description.localeCompare(phenotypes[b.j].description),
-      cat: (a, b) =>
-        phenotypes[a.j].cat.localeCompare(phenotypes[b.j].cat) || Math.abs(b.rg) - Math.abs(a.rg),
-      h2: (a, b) => num(phenotypes[a.j].h2 ?? NaN) - num(phenotypes[b.j].h2 ?? NaN),
-      h2p: (a, b) => num(phenotypes[a.j].h2_p ?? NaN) - num(phenotypes[b.j].h2_p ?? NaN),
-      neff: (a, b) => num(phenotypes[a.j].neff ?? NaN) - num(phenotypes[b.j].neff ?? NaN),
-      se: (a, b) => num(a.se) - num(b.se),
-      z: (a, b) => Math.abs(num(a.z)) - Math.abs(num(b.z)),
-      p: (a, b) => num(a.p) - num(b.p),
+    // Per-key sort value for a row: a number (NaN/undefined when missing) or a
+    // string for the text columns. Missing values are pushed last in BOTH
+    // directions, so sorting never floats blanks to the top.
+    const sf = (row, sexKey, field) => (row[sexKey] ? row[sexKey][field] : NaN);
+    const valueFor = {
+      rg: (r) => r.rg,
+      abs: (r) => Math.abs(r.rg),
+      name: (r) => phenotypes[r.j].description,
+      cat: (r) => phenotypes[r.j].cat,
+      h2: (r) => phenotypes[r.j].h2,
+      h2p: (r) => phenotypes[r.j].h2_p,
+      neff: (r) => phenotypes[r.j].neff,
+      se: (r) => r.se,
+      z: (r) => Math.abs(r.z),
+      p: (r) => r.p,
+      rg_m: (r) => sf(r, 'male', 'rg'),
+      se_m: (r) => sf(r, 'male', 'se'),
+      z_m: (r) => Math.abs(sf(r, 'male', 'z')),
+      p_m: (r) => sf(r, 'male', 'p'),
+      h2_m: (r) => phenotypes[r.j].h2_male,
+      rg_f: (r) => sf(r, 'female', 'rg'),
+      se_f: (r) => sf(r, 'female', 'se'),
+      z_f: (r) => Math.abs(sf(r, 'female', 'z')),
+      p_f: (r) => sf(r, 'female', 'p'),
+      h2_f: (r) => phenotypes[r.j].h2_female,
     };
-    const cmp = base[sortKey] || base.abs;
+    const valOf = valueFor[sortKey] || valueFor.abs;
     const sign = sortDir === 'asc' ? 1 : -1;
-    out.sort((a, b) => sign * cmp(a, b));
+    const missing = (v) => v == null || (typeof v === 'number' && Number.isNaN(v));
+    out.sort((a, b) => {
+      const va = valOf(a);
+      const vb = valOf(b);
+      // Blanks always sink to the bottom, regardless of sort direction.
+      const am = missing(va);
+      const bm = missing(vb);
+      if (am || bm) return am && bm ? 0 : am ? 1 : -1;
+      let d;
+      if (typeof va === 'string' || typeof vb === 'string') {
+        d = String(va).localeCompare(String(vb));
+        // Category ties break by strongest |rg| so each group leads with its top hit.
+        if (sortKey === 'cat' && d === 0) return Math.abs(b.rg) - Math.abs(a.rg);
+      } else {
+        d = va - vb;
+      }
+      return sign * d;
+    });
     return out;
   }, [allRows, phenotypes, categoryFilter, h2Min, rgLo, rgHi, pMax, sortKey, sortDir]);
 
@@ -123,8 +179,13 @@ export function PhenotypeDetail({ data, index, onSelect }) {
       return next;
     });
 
-  const exportCsv = () => {
-    const csv = rowsToCsv(data, index, filtered);
+  // Export always includes the male/female strata, loading them first if needed.
+  const exportCsv = async () => {
+    const [male, female] = await Promise.all([
+      ensureSexMatrices('male'),
+      ensureSexMatrices('female'),
+    ]);
+    const csv = rowsToCsv(data, index, filtered, { male, female });
     downloadCsv(`rg_${seed.id}.csv`, csv);
   };
 
@@ -232,11 +293,16 @@ export function PhenotypeDetail({ data, index, onSelect }) {
             </button>
             {colsOpen && (
               <div class="cols-popover">
-                {COLUMNS.filter((c) => !c.always).map((c) => (
-                  <label key={c.key} class="cols-option">
-                    <input type="checkbox" checked={visible.has(c.key)} onChange={() => toggleCol(c.key)} />
-                    {c.label}
-                  </label>
+                {COLUMN_GROUPS.map((grp) => (
+                  <div class="cols-group" key={grp.title || 'base'}>
+                    {grp.title && <div class="cols-group-title">{grp.title}</div>}
+                    {grp.cols.map((c) => (
+                      <label key={c.key} class="cols-option">
+                        <input type="checkbox" checked={visible.has(c.key)} onChange={() => toggleCol(c.key)} />
+                        {c.label}
+                      </label>
+                    ))}
+                  </div>
                 ))}
               </div>
             )}

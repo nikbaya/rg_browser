@@ -34,6 +34,7 @@ def test_tree_leaves_match_phenotypes(hierarchy, phenotypes, n):
 
 
 def test_edges_well_formed_and_match_matrix(hierarchy, rg, n):
+    # The network stays focused on both-sexes correlations: a single edge list.
     edges = hierarchy["edges"]
     seen = set()
     for a, b, v in edges:
