@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { topCorrelations, formatNum, formatP, ensureSexMatrices, statsFromMatrices } from '../lib/data.js';
+import { topCorrelations, formatNum, formatP, ensureSexMatrices, statsFromMatrices, ukbShowcaseLink } from '../lib/data.js';
 import { colorForCategory, textOnColor } from '../lib/color.js';
 import { phenotypePasses, pairPasses, rowStats } from '../lib/filters.js';
 import { rowsToCsv, downloadCsv } from '../lib/csv.js';
@@ -46,6 +46,7 @@ const COLUMN_GROUPS = [
 export function PhenotypeDetail({ data, index, onSelect }) {
   const { phenotypes, categories } = data;
   const seed = phenotypes[index];
+  const showcase = ukbShowcaseLink(seed.id);
 
   const [sortKey, setSortKey] = useState('abs');
   const [sortDir, setSortDir] = useState('desc');
@@ -212,6 +213,11 @@ export function PhenotypeDetail({ data, index, onSelect }) {
           <span> · h² p = {seed.h2_p != null ? formatP(seed.h2_p) : '—'}</span>
           <span> · Neff = {seed.neff != null ? seed.neff.toLocaleString('en-US') : '—'}</span>
         </div>
+        {showcase && (
+          <a class="showcase-link" href={showcase.url} target="_blank" rel="noopener noreferrer">
+            {showcase.label}
+          </a>
+        )}
       </div>
 
       <div class="controls-row">

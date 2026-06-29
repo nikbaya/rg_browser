@@ -15,7 +15,10 @@ Styled per the Broad Institute brand (not an official Broad product).
 - **Global structure** — a radial hierarchical edge-bundling diagram of the strongest
   correlations (|rg| ≥ 0.5), bundled along a tree from clustering the full matrix.
 - **Heatmap** — the clustered 677×677 correlation matrix rendered on a canvas.
-- **Search & explore** — find a phenotype and browse its ranked top correlations.
+- **Search & explore** — find a phenotype and browse its ranked top correlations. Each detail
+  page links out to the [UK Biobank Data Showcase](https://biobank.ndph.ox.ac.uk/showcase/):
+  standard fields (numeric ids) link to their field page; ICD-10 diagnosis phenotypes link to the
+  Showcase ICD-10 coding classification (no per-code page exists); curated endpoints have no link.
 - **Pairwise lookup** — full LDSC stats (rg, se, z, p, h²) for any two phenotypes, for both
   sexes and, where available, the male- and female-specific analyses.
 
@@ -46,6 +49,15 @@ only where the topline analysis computed it ("—" otherwise); a blank sex corre
 pair was not significant in that stratum. The main views stay focused on both-sexes rg; these
 columns (and the Pairwise lookup) surface the sex-specific values. The sex matrices load lazily
 the first time a sex column is shown.
+
+## Phenotype categories
+
+Categories come from the [UK Biobank Data Showcase](https://biobank.ndph.ox.ac.uk/showcase/)
+schema, resolved in `scripts/build_data.py` (`category_resolver`): numeric UKB fields inherit
+their Showcase *main category*, rolled up from ~70 granular groups into a compact set
+(`MAIN_CATEGORY_ROLLUP`); ICD-10 / FinnGen / curated endpoints with no field are categorized by
+ICD-10 chapter (`ICD_LETTER` / `ICD_ROMAN` / `NAMED_ENDPOINTS`); everything else falls back to
+`Other`. This is also explained in the in-app FAQ.
 
 ## Architecture
 

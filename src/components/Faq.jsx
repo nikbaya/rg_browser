@@ -68,6 +68,53 @@ const ITEMS = [
     ),
   },
   {
+    q: 'Where do the phenotype categories come from?',
+    a: (
+      <>
+        <p>
+          Categories are derived from the{' '}
+          <a href="https://biobank.ndph.ox.ac.uk/showcase/" target="_blank" rel="noreferrer">
+            UK Biobank Data Showcase
+          </a>{' '}
+          schema, not assigned by hand:
+        </p>
+        <ul>
+          <li>
+            <strong>Standard UK Biobank fields</strong> (phenotypes with a numeric field id, e.g.{' '}
+            <span class="mono">4526</span> "Happiness") inherit that field's{' '}
+            <em>main category</em> from the Showcase schema. The Showcase's ~70 granular categories
+            are rolled up into a compact, readable set (e.g. "Depression", "Anxiety", and
+            "Happiness and subjective well-being" all roll up to <strong>Mental health</strong>).
+          </li>
+          <li>
+            <strong>ICD-10 and curated disease endpoints</strong> (non-field ids such as{' '}
+            <span class="mono">I48</span> or <span class="mono">C3_PROSTATE</span>) have no Showcase
+            field, so they are categorized by their <strong>ICD-10 chapter</strong> — e.g. C/D →
+            Neoplasms, I → Cardiovascular, M → Musculoskeletal.
+          </li>
+          <li>
+            Anything that matches neither falls back to <strong>Other</strong>.
+          </li>
+        </ul>
+      </>
+    ),
+  },
+  {
+    q: 'Can I see the original UK Biobank definition of a phenotype?',
+    a: (
+      <p>
+        Yes — each phenotype detail page links out to the{' '}
+        <a href="https://biobank.ndph.ox.ac.uk/showcase/" target="_blank" rel="noreferrer">
+          UK Biobank Data Showcase
+        </a>
+        . Standard fields (numeric ids) link to that field's Showcase page, with its exact question
+        wording, encoding, and distributions. ICD-10 diagnosis phenotypes (e.g.{' '}
+        <span class="mono">I48</span>) link to the Showcase's ICD-10 coding classification, since the
+        Showcase has no per-code page. Curated/derived endpoints with no Showcase entry show no link.
+      </p>
+    ),
+  },
+  {
     q: 'Why are some |rg| values greater than 1?',
     a: (
       <p>

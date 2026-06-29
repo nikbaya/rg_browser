@@ -137,9 +137,36 @@ export function pairStats(data, i, j) {
   };
 }
 
+// UK Biobank Data Showcase link for a phenotype: { url, label } or null.
+//   • Numeric ids carry a UKB field id (e.g. "5101_irnt" → 5101, "2395_2" →
+//     2395, "2365") → that field's Data Showcase page.
+//   • Pure ICD10-code ids (e.g. "I48", "C44", "M20" — one letter + ≥2 digits,
+//     no underscore) come from the main-diagnoses field → the showcase's ICD10
+//     classification (data-coding 19). The showcase has no per-code deep link,
+//     so this opens the searchable ICD10 coding page.
+// Returns null for curated/derived ids without a showcase page (e.g. FinnGen-
+// style "C3_PROSTATE", "I9_MI", or "CARDIAC_ARRHYTM").
+const UKB_ICD10_CODING = 19;
+export function ukbShowcaseLink(id) {
+  const field = /^(\d+)(?:_|$)/.exec(id);
+  if (field) {
+    return {
+      url: `https://biobank.ndph.ox.ac.uk/showcase/field.cgi?id=${field[1]}`,
+      label: 'View on UK Biobank Showcase ↗',
+    };
+  }
+  if (/^[A-Z]\d{2}\d*$/.test(id)) {
+    return {
+      url: `https://biobank.ndph.ox.ac.uk/showcase/coding.cgi?id=${UKB_ICD10_CODING}`,
+      label: 'View ICD10 coding on UK Biobank Showcase ↗',
+    };
+  }
+  return null;
+}
+
 // Format a p-value compactly (handles the extreme small values in this dataset).
 export function formatP(p) {
-  if (Number.isNaN(p)) return '—';
+  if (p == null || Number.isNaN(p)) return '—'; // null: stat not computed for this trait
   if (p <= 1e-300) return '<1e-300'; // includes exact 0 (underflow) and denormals
   if (p < 1e-4) return p.toExponential(2);
   return p.toPrecision(3);

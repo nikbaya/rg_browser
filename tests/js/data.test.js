@@ -9,6 +9,7 @@ import {
   pairStats,
   formatP,
   formatNum,
+  ukbShowcaseLink,
 } from '../../src/lib/data.js';
 
 // 3x3 symmetric fixture, row-major.
@@ -96,6 +97,8 @@ describe('pairStats', () => {
 describe('formatP', () => {
   it('formats edge cases', () => {
     expect(formatP(NaN)).toBe('—');
+    expect(formatP(null)).toBe('—'); // stat not computed (e.g. h2_p for a sex-specific trait)
+    expect(formatP(undefined)).toBe('—');
     expect(formatP(0)).toBe('<1e-300');
     expect(formatP(1e-6)).toBe((1e-6).toExponential(2));
     expect(formatP(0.5)).toBe((0.5).toPrecision(3));
@@ -108,5 +111,29 @@ describe('formatNum', () => {
     expect(formatNum(NaN)).toBe('—');
     expect(formatNum(0.12345)).toBe('0.123');
     expect(formatNum(0.12345, 2)).toBe('0.12');
+  });
+});
+
+describe('ukbShowcaseLink', () => {
+  const field = (id) => ukbShowcaseLink(id)?.url;
+
+  it('links numeric field ids to the field showcase page', () => {
+    expect(field('5101_irnt')).toBe('https://biobank.ndph.ox.ac.uk/showcase/field.cgi?id=5101');
+    expect(field('2395_2')).toBe('https://biobank.ndph.ox.ac.uk/showcase/field.cgi?id=2395');
+    expect(field('2365')).toBe('https://biobank.ndph.ox.ac.uk/showcase/field.cgi?id=2365');
+  });
+
+  it('links ICD10 codes to the data-coding 19 page', () => {
+    const icd = 'https://biobank.ndph.ox.ac.uk/showcase/coding.cgi?id=19';
+    expect(field('I48')).toBe(icd);
+    expect(field('C44')).toBe(icd);
+    expect(field('M20')).toBe(icd);
+  });
+
+  it('returns null for curated/FinnGen-style ids with no showcase page', () => {
+    expect(ukbShowcaseLink('CARDIAC_ARRHYTM')).toBeNull();
+    expect(ukbShowcaseLink('C3_PROSTATE')).toBeNull();
+    expect(ukbShowcaseLink('I9_MI')).toBeNull();
+    expect(ukbShowcaseLink('H7_LENS')).toBeNull();
   });
 });
