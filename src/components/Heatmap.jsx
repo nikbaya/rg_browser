@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { colorForRg } from '../lib/color.js';
+import { colorForRg, colorForCategory } from '../lib/color.js';
 
 const LABEL_CELL_PX = 13;   // show axis labels once cells are at least this big
 const MARGIN = 150;         // px reserved for labels when zoomed in
+const RIBBON = 10;          // px category color strip along each axis
 const MIN_ZOOM_CELLS = 3;   // a drag smaller than this counts as a click
 
 // Clustered correlation heatmap on a canvas. Drag a box to zoom into a submatrix,
@@ -14,7 +15,7 @@ export function Heatmap({ data, onSelect }) {
   const wrapRef = useRef(null);
   const tipRef = useRef(null);
   const selRef = useRef(null);
-  const geom = useRef({ cell: 1, m: 0 }); // last-drawn geometry for hit-testing
+  const geom = useRef({ cell: 1, m: 0, o: RIBBON }); // last-drawn geometry for hit-testing
   const drag = useRef(null);
 
   const [view, setView] = useState({ i0: 0, i1: n, j0: 0, j1: n });
@@ -31,12 +32,13 @@ export function Heatmap({ data, onSelect }) {
       const cssW = wrapRef.current.clientWidth - 2;
       const cell = Math.max(1, Math.floor(cssW / cols));
       const showLabels = cell >= LABEL_CELL_PX;
-      const m = showLabels ? MARGIN : 0;
-      geom.current = { cell, m };
+      const m = showLabels ? MARGIN : 0;   // label text area: [0, m)
+      const o = m + RIBBON;                // matrix origin; ribbon occupies [m, o)
+      geom.current = { cell, m, o };
 
       const dpr = window.devicePixelRatio || 1;
-      const cssWidth = m + cols * cell;
-      const cssHeight = m + rows * cell;
+      const cssWidth = o + cols * cell;
+      const cssHeight = o + rows * cell;
       canvas.style.width = `${cssWidth}px`;
       canvas.style.height = `${cssHeight}px`;
       canvas.width = Math.round(cssWidth * dpr);
@@ -50,11 +52,11 @@ export function Heatmap({ data, onSelect }) {
         for (let c = 0; c < cols; c++) {
           const v = rg[(i0 + r) * n + (j0 + c)];
           const [cr, cg, cb] = hexToRgb(colorForRg(v));
-          const o = (r * cols + c) * 4;
-          img.data[o] = cr;
-          img.data[o + 1] = cg;
-          img.data[o + 2] = cb;
-          img.data[o + 3] = 255;
+          const oo = (r * cols + c) * 4;
+          img.data[oo] = cr;
+          img.data[oo + 1] = cg;
+          img.data[oo + 2] = cb;
+          img.data[oo + 3] = 255;
         }
       }
       const tmp = document.createElement('canvas');
@@ -62,26 +64,37 @@ export function Heatmap({ data, onSelect }) {
       tmp.height = rows;
       tmp.getContext('2d').putImageData(img, 0, 0);
       ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(tmp, 0, 0, cols, rows, m, m, cols * cell, rows * cell);
+      ctx.drawImage(tmp, 0, 0, cols, rows, o, o, cols * cell, rows * cell);
+
+      // Category color ribbons along the top (columns) and left (rows). Drawn at
+      // every zoom level so category structure is visible even when zoomed out.
+      for (let c = 0; c < cols; c++) {
+        ctx.fillStyle = colorForCategory(phenotypes[j0 + c].cat);
+        ctx.fillRect(o + c * cell, m, cell, RIBBON);
+      }
+      for (let r = 0; r < rows; r++) {
+        ctx.fillStyle = colorForCategory(phenotypes[i0 + r].cat);
+        ctx.fillRect(m, o + r * cell, RIBBON, cell);
+      }
 
       if (showLabels) {
         ctx.fillStyle = '#3e3e40';
         ctx.font = '11px "Open Sans", sans-serif';
         const maxChars = Math.floor(MARGIN / 6.5);
-        // Column labels along the top (rotated).
+        // Column labels along the top (rotated), ending just above the ribbon.
         ctx.textAlign = 'left';
         ctx.textBaseline = 'middle';
         for (let c = 0; c < cols; c++) {
           ctx.save();
-          ctx.translate(m + c * cell + cell / 2, m - 6);
+          ctx.translate(o + c * cell + cell / 2, m - 4);
           ctx.rotate(-Math.PI / 2);
           ctx.fillText(trunc(phenotypes[j0 + c].description, maxChars), 0, 0);
           ctx.restore();
         }
-        // Row labels down the left.
+        // Row labels down the left, ending just left of the ribbon.
         ctx.textAlign = 'right';
         for (let r = 0; r < rows; r++) {
-          ctx.fillText(trunc(phenotypes[i0 + r].description, maxChars), m - 6, m + r * cell + cell / 2);
+          ctx.fillText(trunc(phenotypes[i0 + r].description, maxChars), m - 4, o + r * cell + cell / 2);
         }
       }
     }
@@ -103,15 +116,34 @@ export function Heatmap({ data, onSelect }) {
   // Map a pointer event to a cell within the current view.
   function cellAt(e) {
     const rect = canvasRef.current.getBoundingClientRect();
-    const { cell, m } = geom.current;
+    const { cell, o } = geom.current;
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
-    const c = Math.floor((x - m) / cell);
-    const r = Math.floor((y - m) / cell);
+    const c = Math.floor((x - o) / cell);
+    const r = Math.floor((y - o) / cell);
     const cols = view.j1 - view.j0;
     const rows = view.i1 - view.i0;
     if (c < 0 || r < 0 || c >= cols || r >= rows) return null;
     return { r, c, x, y, i: view.i0 + r, j: view.j0 + c };
+  }
+
+  // Detect a hover over a category ribbon; returns the phenotype index, or null.
+  function ribbonAt(e) {
+    const rect = canvasRef.current.getBoundingClientRect();
+    const { cell, m, o } = geom.current;
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const cols = view.j1 - view.j0;
+    const rows = view.i1 - view.i0;
+    if (y >= m && y < o && x >= o) {
+      const c = Math.floor((x - o) / cell);
+      if (c >= 0 && c < cols) return view.j0 + c;
+    }
+    if (x >= m && x < o && y >= o) {
+      const r = Math.floor((y - o) / cell);
+      if (r >= 0 && r < rows) return view.i0 + r;
+    }
+    return null;
   }
 
   function onMove(e) {
@@ -134,6 +166,17 @@ export function Heatmap({ data, onSelect }) {
     }
 
     if (!hit) {
+      // Maybe the pointer is over a category ribbon — show the category name.
+      const ri = drag.current ? null : ribbonAt(e);
+      if (ri != null) {
+        const p = phenotypes[ri];
+        tip.classList.add('show');
+        tip.style.left = `${e.clientX + 14}px`;
+        tip.style.top = `${e.clientY + 14}px`;
+        tip.innerHTML =
+          `<strong>${p.description}</strong><br><span class="mono">${p.cat}</span>`;
+        return;
+      }
       tip.classList.remove('show');
       return;
     }
@@ -144,7 +187,7 @@ export function Heatmap({ data, onSelect }) {
     tip.innerHTML =
       `<strong>${phenotypes[hit.i].description}</strong><br>` +
       `<strong>${phenotypes[hit.j].description}</strong><br>` +
-      `<span class="mono">rg = ${Number.isNaN(v) ? '—' : v.toFixed(3)}</span>`;
+      `<span class="mono">rg = ${Number.isNaN(v) ? '—' : v.toPrecision(3)}</span>`;
   }
 
   function onDown(e) {
@@ -187,7 +230,7 @@ export function Heatmap({ data, onSelect }) {
     <div>
       <p class="view-intro">
         The full <strong>{n} × {n}</strong> matrix of genetic correlations, clustered so related
-        traits sit together. Bright <strong style="color: var(--broad-blue)">blue</strong> blocks
+        traits sit together. Warm <strong style="color: var(--rg-pos)">coral</strong> blocks
         along the diagonal are groups of mutually correlated phenotypes.{' '}
         <strong>Drag a box to zoom in</strong>; labels appear once cells are large enough.
       </p>
@@ -225,6 +268,15 @@ export function Heatmap({ data, onSelect }) {
         <span class="bar" />
         <span>+1</span>
         <span style="margin-left:0.5rem">genetic correlation (rg)</span>
+      </div>
+      <div class="cat-legend">
+        <span class="cat-legend-title">Category ribbons:</span>
+        {data.categories.map((name) => (
+          <span class="cat-legend-item" key={name}>
+            <span class="cat-swatch" style={`background:${colorForCategory(name)}`} />
+            {name}
+          </span>
+        ))}
       </div>
       <div ref={tipRef} class="viz-tooltip" />
     </div>

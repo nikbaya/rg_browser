@@ -1,0 +1,5 @@
+# Dev/test dependencies for the Python data-accuracy suite (see tests/).
+# Same libraries scripts/build_data.py needs, plus pytest.
+numpy>=1.24
+scipy>=1.10
+pytest>=7.4

@@ -7,3 +7,7 @@ data/raw/
 
 # Broad Institute brand reference (internal doc — not for the public repo)
 Broad Style Guide*.pdf
+
+# Python bytecode
+__pycache__/
+*.pyc

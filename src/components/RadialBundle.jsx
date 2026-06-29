@@ -7,6 +7,8 @@ import { colorForRg } from '../lib/color.js';
 
 const SIZE = 1000;             // viewBox units (square)
 const RADIUS = SIZE / 2 - 130; // leave room for labels
+const BASE_FONT = 5.5;         // label font at base zoom
+const LABEL_PAD = 1.25;        // multiplier on font height for collision spacing
 
 // Label colors (hex — CSS custom properties don't resolve inside SVG attributes).
 const C_MUTED = '#63666a';
@@ -17,11 +19,16 @@ const C_ACCENT = '#006db6';
 // Hierarchical edge bundling of the strongest genetic correlations, laid out on a
 // radial dendrogram derived from average-linkage clustering of the rg matrix.
 // Scroll/pinch to zoom, drag to pan, click a trait to pin its connections.
+// The rg slider tightens which correlations are drawn; labels are revealed
+// adaptively so they never overlap (more appear as you zoom in).
 export function RadialBundle({ data, onSelect }) {
   const svgRef = useRef(null);
   const tipRef = useRef(null);
   const zoomApi = useRef(null);
+  const rebuildRef = useRef(null);   // re-filter links when the threshold changes
+  const thresholdRef = useRef(0.5);
   const [pinned, setPinned] = useState(null); // {name, dataIndex, count}
+  const [rgThreshold, setRgThreshold] = useState(0.5);
 
   useEffect(() => {
     const svg = select(svgRef.current);
@@ -30,23 +37,13 @@ export function RadialBundle({ data, onSelect }) {
     const root = hierarchy(data.hierarchy.tree);
     cluster().size([2 * Math.PI, RADIUS])(root);
 
+    const leaves = root.leaves();
     const leafByIndex = new Map();
-    root.leaves().forEach((leaf) => {
+    leaves.forEach((leaf) => {
       leaf.dataIndex = data.idToIndex.get(leaf.data.id);
       leaf.incident = [];
       leafByIndex.set(leaf.dataIndex, leaf);
     });
-
-    const links = [];
-    for (const [a, b, rg] of data.hierarchy.edges) {
-      const sa = leafByIndex.get(a);
-      const sb = leafByIndex.get(b);
-      if (!sa || !sb) continue;
-      const link = { source: sa, target: sb, rg, path: sa.path(sb) };
-      links.push(link);
-      sa.incident.push(link);
-      sb.incident.push(link);
-    }
 
     const line = lineRadial()
       .curve(curveBundle.beta(0.85))
@@ -57,23 +54,13 @@ export function RadialBundle({ data, onSelect }) {
     const zoomLayer = svg.append('g');
     const g = zoomLayer.append('g').attr('transform', `translate(${SIZE / 2},${SIZE / 2})`);
 
-    const linkSel = g
-      .append('g')
-      .attr('class', 'rb-links')
-      .attr('fill', 'none')
-      .selectAll('path')
-      .data(links)
-      .join('path')
-      .attr('class', 'rb-link')
-      .attr('d', (d) => line(d.path))
-      .attr('stroke', (d) => colorForRg(d.rg))
-      .attr('stroke-width', 1)
-      .attr('stroke-opacity', 0.38);
+    const linkLayer = g.append('g').attr('class', 'rb-links').attr('fill', 'none');
+    let linkSel = linkLayer.selectAll('path'); // (re)populated by rebuild()
 
     const labelSel = g
       .append('g')
       .selectAll('text')
-      .data(root.leaves())
+      .data(leaves)
       .join('text')
       .attr('dy', '0.31em')
       .attr('transform', (d) => {
@@ -82,7 +69,7 @@ export function RadialBundle({ data, onSelect }) {
         return `rotate(${angle}) translate(${d.y + 6},0)${flip ? ' rotate(180)' : ''}`;
       })
       .attr('text-anchor', (d) => (d.x >= Math.PI ? 'end' : 'start'))
-      .attr('font-size', 5.5)
+      .attr('font-size', BASE_FONT)
       .attr('fill', C_MUTED)
       .style('cursor', 'pointer')
       .text((d) => d.data.name)
@@ -104,6 +91,34 @@ export function RadialBundle({ data, onSelect }) {
     let renderedLeaf = undefined; // last leaf whose highlight is on screen
     let rafId = 0;
     let pending = null;
+    let curK = 1;                 // current zoom scale
+    let visible = new Set();      // leaves whose labels are shown at base state
+
+    // Reveal as many non-overlapping labels as fit at the current zoom. Higher
+    // angular density is allowed as you zoom in; more-connected traits win ties.
+    function updateLabelVisibility() {
+      const minGap = (BASE_FONT * LABEL_PAD) / (RADIUS * curK); // radians between labels
+      const order = [...leaves].sort((a, b) => b.incident.length - a.incident.length);
+      const accepted = []; // angles, kept sorted
+      const show = new Set();
+      for (const leaf of order) {
+        const a = leaf.x;
+        // nearest accepted angle (linear scan is fine at this size)
+        let ok = true;
+        for (let i = 0; i < accepted.length; i++) {
+          if (Math.abs(accepted[i] - a) < minGap) {
+            ok = false;
+            break;
+          }
+        }
+        if (ok) {
+          accepted.push(a);
+          show.add(leaf);
+        }
+      }
+      visible = show;
+      if (!renderedLeaf) labelSel.attr('display', (d) => (show.has(d) ? null : 'none'));
+    }
 
     // Coalesce the mouseover storm: only repaint once per frame, and skip if the
     // hovered leaf hasn't actually changed.
@@ -118,7 +133,6 @@ export function RadialBundle({ data, onSelect }) {
 
     function applyHighlight(leaf, showTip) {
       if (leaf === renderedLeaf) {
-        // Same leaf already drawn — only the tooltip text/visibility may differ.
         tip.classed('show', !!(leaf && showTip));
         return;
       }
@@ -126,7 +140,11 @@ export function RadialBundle({ data, onSelect }) {
 
       if (!leaf) {
         linkSel.attr('stroke-opacity', 0.38).attr('stroke-width', 1);
-        labelSel.attr('fill', C_MUTED).attr('font-weight', 400).attr('font-size', 5.5);
+        labelSel
+          .attr('fill', C_MUTED)
+          .attr('font-weight', 400)
+          .attr('font-size', BASE_FONT)
+          .attr('display', (d) => (visible.has(d) ? null : 'none'));
         tip.classed('show', false);
         return;
       }
@@ -141,7 +159,9 @@ export function RadialBundle({ data, onSelect }) {
       labelSel
         .attr('fill', (d) => (d === leaf ? C_ACCENT : activeLeaves.has(d) ? C_TEXT : C_DIM))
         .attr('font-weight', (d) => (activeLeaves.has(d) ? 700 : 400))
-        .attr('font-size', (d) => (d === leaf ? 8.5 : activeLeaves.has(d) ? 6.5 : 5.5));
+        .attr('font-size', (d) => (d === leaf ? 8.5 : activeLeaves.has(d) ? 6.5 : BASE_FONT))
+        // Always show the focused trait and its neighbors, even if normally hidden.
+        .attr('display', (d) => (activeLeaves.has(d) || visible.has(d) ? null : 'none'));
 
       if (showTip) {
         tip
@@ -157,6 +177,46 @@ export function RadialBundle({ data, onSelect }) {
       }
     }
 
+    // (Re)build the drawn links from the current rg threshold without disturbing
+    // the zoom/pan transform.
+    function rebuild() {
+      const th = thresholdRef.current;
+      leaves.forEach((l) => (l.incident = []));
+      const links = [];
+      for (const [a, b, rg] of data.hierarchy.edges) {
+        if (Math.abs(rg) < th) continue;
+        const sa = leafByIndex.get(a);
+        const sb = leafByIndex.get(b);
+        if (!sa || !sb) continue;
+        const link = { source: sa, target: sb, rg, path: sa.path(sb) };
+        links.push(link);
+        sa.incident.push(link);
+        sb.incident.push(link);
+      }
+      linkSel = linkLayer
+        .selectAll('path')
+        .data(links)
+        .join('path')
+        .attr('class', 'rb-link')
+        .attr('d', (d) => line(d.path))
+        .attr('stroke', (d) => colorForRg(d.rg))
+        .attr('stroke-width', 1)
+        .attr('stroke-opacity', 0.38);
+
+      renderedLeaf = undefined; // force highlight + visibility to repaint
+      updateLabelVisibility();
+      if (pinnedLeaf) {
+        setPinned({
+          name: pinnedLeaf.data.name,
+          dataIndex: pinnedLeaf.dataIndex,
+          count: pinnedLeaf.incident.length,
+        });
+      }
+      applyHighlight(pinnedLeaf, false);
+    }
+    rebuildRef.current = rebuild;
+    rebuild();
+
     // Click empty space clears the pin.
     svg.on('click', () => {
       pinnedLeaf = null;
@@ -168,10 +228,16 @@ export function RadialBundle({ data, onSelect }) {
       tip.style('left', `${event.clientX + 14}px`).style('top', `${event.clientY + 14}px`);
     });
 
-    // Zoom + pan (wheel, drag, touch pinch).
+    // Zoom + pan (wheel, drag, touch pinch). Revealing more labels as we zoom in.
     const zoomBehavior = zoom()
       .scaleExtent([0.6, 12])
-      .on('zoom', (e) => zoomLayer.attr('transform', e.transform));
+      .on('zoom', (e) => {
+        zoomLayer.attr('transform', e.transform);
+        if (Math.abs(e.transform.k - curK) > 1e-3) {
+          curK = e.transform.k;
+          if (!renderedLeaf) updateLabelVisibility();
+        }
+      });
     svg.call(zoomBehavior).on('dblclick.zoom', null);
     zoomApi.current = {
       in: () => svg.transition().duration(250).call(zoomBehavior.scaleBy, 1.5),
@@ -181,16 +247,24 @@ export function RadialBundle({ data, onSelect }) {
 
     return () => {
       if (rafId) cancelAnimationFrame(rafId);
+      rebuildRef.current = null;
     };
   }, [data]);
+
+  // Re-filter the drawn links when the threshold slider moves (keeps zoom/pan).
+  useEffect(() => {
+    thresholdRef.current = rgThreshold;
+    if (rebuildRef.current) rebuildRef.current();
+  }, [rgThreshold]);
 
   return (
     <div>
       <p class="view-intro">
-        Each thread links two phenotypes with a strong genetic correlation (<strong>|rg| ≥ 0.5</strong>),
-        bundled along a tree built by clustering the full correlation matrix.{' '}
-        <strong style="color: var(--broad-blue)">Blue</strong> = positive,{' '}
-        <strong style="color: var(--red)">red</strong> = negative. Hover a label to trace its
+        Each thread links two phenotypes with a strong genetic correlation
+        (<strong>|rg| ≥ {rgThreshold.toFixed(2)}</strong>), bundled along a tree built by
+        clustering the full correlation matrix.{' '}
+        <strong style="color: var(--rg-pos)">Coral</strong> = positive,{' '}
+        <strong style="color: var(--rg-neg)">cornflower blue</strong> = negative. Hover a label to trace its
         connections; click it to pin and explore.
       </p>
       <div class="viz-wrap card" style="padding: 0.5rem;">
@@ -198,6 +272,19 @@ export function RadialBundle({ data, onSelect }) {
           <button title="Zoom in" onClick={() => zoomApi.current?.in()}>＋</button>
           <button title="Zoom out" onClick={() => zoomApi.current?.out()}>－</button>
           <button title="Reset view" onClick={() => zoomApi.current?.reset()}>⟲</button>
+        </div>
+        <div class="rb-threshold">
+          <label for="rb-rg">min <span class="lc">|rg|</span></label>
+          <input
+            id="rb-rg"
+            type="range"
+            min="0.5"
+            max="1"
+            step="0.01"
+            value={rgThreshold}
+            onInput={(e) => setRgThreshold(parseFloat(e.currentTarget.value))}
+          />
+          <span class="mono rb-threshold-val">{rgThreshold.toFixed(2)}</span>
         </div>
         <span class="viz-hint">Scroll / pinch to zoom · drag to pan · click a trait to pin</span>
         <svg

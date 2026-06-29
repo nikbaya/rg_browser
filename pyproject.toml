@@ -1,0 +1,11 @@
+[tool.pytest.ini_options]
+# Data-accuracy tests for the genetic-correlation browser.
+# `pythonpath = scripts` lets the build-logic tests import build_data directly,
+# so they verify the real shipping code (and its constants) rather than a copy.
+testpaths = ["tests"]
+pythonpath = ["scripts"]
+python_files = ["test_*.py"]
+addopts = "-ra"
+markers = [
+    "roundtrip: gold-standard checks against the raw LDSC source (skips if absent)",
+]

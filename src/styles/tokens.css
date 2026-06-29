@@ -1,46 +1,48 @@
-/* Broad Institute brand tokens (Style Guide, July 2025). */
+/* Soft scientific neutral palette: slate/ink text on cool off-white surfaces,
+   a calm steel-blue accent, and the original UKBB LDSC cornflower->coral rg scale. */
 :root {
-  /* Primary */
-  --broad-blue: #006db6;
-  --black: #000000;
+  /* Neutral base */
+  --ink: #1e2530;        /* primary text, near-black slate */
+  --slate: #44505f;      /* secondary text */
+  --slate-mut: #6b7686;  /* muted text / labels */
+  --surface: #f6f7f9;    /* page / section background, cool off-white */
+  --surface-2: #eef1f4;  /* cards-on-surface / hover */
   --white: #ffffff;
+  --black: #000000;
 
-  /* Secondary / accents */
-  --cyan: #00afd7;
-  --green: #80bc42;
-  --yellow: #ffcd00;
-  --orange: #f36c3e;
-  --red: #b12028;
-  --purple: #69488e;
-  --cool-gray: #63666a;
+  /* Accent (steel-blue) — replaces the dominant Broad blue */
+  --accent: #3b6ea5;
+  --accent-strong: #2c557f; /* hover / pressed accent */
+  --accent-weak: #e8eef5;   /* focus ring / selected-row tint */
 
-  /* Tints & shades */
-  --blue-tint: #a1cef5;
-  --blue-shade: #09395f;
+  /* Grays (kept for component references) */
   --gray-100: #f4f4f7;
   --gray-200: #e4e4ea;
   --gray-300: #c4c4ca;
-  --gray-600: #63666a;
+  --gray-600: #6b7686;
   --gray-800: #3e3e40;
+
+  /* rg diverging scale endpoints (cornflower neg -> white -> coral pos) */
+  --rg-neg: #6495ed;
+  --rg-zero: #ffffff;
+  --rg-pos: #cd5555;
 
   /* Semantic */
   --bg: var(--white);
-  --surface: var(--gray-100);
-  --border: var(--gray-200);
-  --text: var(--blue-shade);
-  --text-muted: var(--gray-600);
-  --accent: var(--broad-blue);
+  --border: #dfe3e8;
+  --text: var(--ink);
+  --text-muted: var(--slate-mut);
   --accent-contrast: var(--white);
-
-  /* Diverging correlation scale endpoints */
-  --rg-neg: var(--red);
-  --rg-zero: var(--white);
-  --rg-pos: var(--broad-blue);
+  /* Back-compat alias: older rules referenced --broad-blue / --blue-tint /
+     --blue-shade. Point them at the new accent so nothing reads as bright Broad blue. */
+  --broad-blue: var(--accent);
+  --blue-tint: var(--accent-weak);
+  --blue-shade: var(--ink);
 
   --font-sans: 'Open Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'Roboto Mono', ui-monospace, 'SF Mono', Menlo, monospace;
 
   --radius: 8px;
-  --shadow: 0 1px 3px rgba(9, 57, 95, 0.08), 0 4px 16px rgba(9, 57, 95, 0.06);
+  --shadow: 0 1px 2px rgba(30, 37, 48, 0.06), 0 6px 20px rgba(30, 37, 48, 0.06);
   --maxw: 1200px;
 }
