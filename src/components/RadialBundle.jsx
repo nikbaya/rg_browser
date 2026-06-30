@@ -13,6 +13,10 @@ const LABEL_PAD = 1.25;        // multiplier on font height for collision spacin
 // in), 1 = grow fully with the graph (no extra labels revealed). In between, labels
 // grow sub-linearly and more of them fit as you zoom in.
 const LABEL_GROWTH = 0.6;
+// Hover/click only activate in this radial band (fractions of RADIUS) around the rim,
+// where the trait dots and labels are — not over the arcs in the interior.
+const HOVER_INNER = 0.85;
+const HOVER_OUTER = 1.6;
 // |z| beyond which the source p-value underflowed to 0 (nlogp stored as NaN). Those
 // are the *most* significant pairs, so treat them as passing any significance cut.
 const Z_UNDERFLOW = 37;
@@ -258,11 +262,13 @@ export function RadialBundle({ data, onSelect }) {
       return best;
     }
 
-    // Map a pointer event to the leaf it points at. Returns null in the empty inner
-    // region so hovering the center clears the highlight.
+    // Map a pointer event to the leaf it points at. Only the rim band (where the trait
+    // dots + labels live) is active — pointing at the interior (over the arcs) or far
+    // outside returns null, so hovering inside the circle doesn't trip the tooltip.
     function leafAtPointer(event) {
       const [px, py] = pointer(event, g.node());
-      if (Math.hypot(px, py) < RADIUS * 0.5) return null;
+      const r = Math.hypot(px, py);
+      if (r < RADIUS * HOVER_INNER || r > RADIUS * HOVER_OUTER) return null;
       const ang = (Math.atan2(px, -py) + 2 * Math.PI) % (2 * Math.PI);
       return nearestLeaf(ang);
     }
