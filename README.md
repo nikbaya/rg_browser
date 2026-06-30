@@ -12,8 +12,12 @@ Styled per the Broad Institute brand (not an official Broad product).
 
 ## Views
 
-- **Global structure** — a radial hierarchical edge-bundling diagram of the strongest
-  correlations (|rg| ≥ 0.5), bundled along a tree from clustering the full matrix.
+- **Global structure** — a radial arc diagram of the strongest correlations (|rg| ≥ 0.5). Traits
+  are arranged around the rim by clustering the full matrix (similar ones adjacent), and each
+  correlation is drawn as an arc bowing toward the center. Sliders filter the drawn correlations by
+  minimum |rg| and maximum p-value, and only still-connected traits stay on the circle (re-spacing
+  to fill it as you tighten). Hover a trait to trace its links; click to pin a card listing its top
+  correlations with their rg values.
 - **Heatmap** — the clustered 677×677 correlation matrix rendered on a canvas.
 - **Search & explore** — find a phenotype and browse its ranked top correlations. Each detail
   page links out to the [UK Biobank Data Showcase](https://biobank.ndph.ox.ac.uk/showcase/):

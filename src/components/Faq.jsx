@@ -179,7 +179,13 @@ const ITEMS = [
         Phenotypes are arranged by <strong>average-linkage hierarchical clustering</strong> on a
         distance of 1 − rg, so genetically similar traits sit next to each other in the heatmap and
         radial views. The same leaf order is shared across every view. The network/radial diagram
-        draws only the strongest edges (|rg| ≥ 0.5), capped per phenotype to stay legible.
+        places traits around the rim in that clustered order and draws only the strongest edges
+        (|rg| ≥ 0.5), capped per phenotype to stay legible, each as an arc bowing toward the center.
+        Sliders filter the drawn correlations by minimum |rg| and maximum p-value; only traits with
+        a surviving correlation stay on the circle, and they re-space to fill it as you tighten.
+        Hover near a trait to trace its connections (the tooltip lists its three strongest); click
+        it to pin a card listing its top correlations with their rg values, colored on the same
+        blue-to-red scale as the edges.
       </p>
     ),
   },
