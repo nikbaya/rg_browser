@@ -130,7 +130,16 @@ gitignored); CI still runs all internal-invariant, referential-integrity, and bu
 
 ## Deploy
 
-Pushing to `main` triggers `.github/workflows/deploy.yml`, which builds and deploys to GitHub
-Pages. The Vite `base` is `/rg_browser/` (override with `VITE_BASE=/` for a root deployment).
-The built `public/data/*` artifacts are committed; the 45MB raw source under `data/raw/` is
-gitignored.
+**This site auto-deploys to GitHub Pages on every push to `main`** — there is no manual deploy
+step. Pushing to `main` (or running the workflow manually via *Actions → Deploy to GitHub Pages →
+Run workflow*) triggers [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml), which runs
+three jobs in sequence:
+
+1. **test** — `pytest` (data-accuracy checks against `public/data/*`) and `npm test`.
+2. **build** — `npm run build`, uploading `dist/` as the Pages artifact.
+3. **deploy** — publishes that artifact to GitHub Pages.
+
+A failing test blocks the build and deploy, so run `pytest` and `npm test` locally before pushing.
+The live site is **https://nikbaya.github.io/rg_browser/**. The Vite `base` is `/rg_browser/` to
+match that path (override with `VITE_BASE=/` for a root deployment). The built `public/data/*`
+artifacts are committed; the 45 MB raw source under `data/raw/` is gitignored.
