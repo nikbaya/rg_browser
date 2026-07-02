@@ -244,6 +244,49 @@ a { color: var(--broad-blue); }
 }
 .showcase-link:hover { text-decoration: underline; }
 
+/* Compact context bar that slides in from the top once the headline card is
+   scrolled past. Hidden on wide screens (there's room to keep scrolling back
+   up); shown on narrow/mobile where the table is long. */
+.detail-stickybar { display: none; }
+@media (max-width: 700px) {
+  .detail-stickybar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 45; /* above the topbar (40) — the trait context wins while scrolling */
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.8rem;
+    padding: 0.5rem clamp(1rem, 4vw, 2.5rem);
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: saturate(1.4) blur(8px);
+    border-bottom: 1px solid var(--border);
+    border-left: 4px solid var(--accent);
+    box-shadow: var(--shadow);
+    transform: translateY(-105%);
+    transition: transform 0.22s ease;
+  }
+  .detail-stickybar.is-visible { transform: translateY(0); }
+  .detail-stickybar-name {
+    font-weight: 700;
+    font-size: 0.9rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+  }
+  .detail-stickybar-stats {
+    flex: none;
+    display: flex;
+    gap: 0.8rem;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+}
+
 /* ---- Instant hover tooltip (src/components/Tip.jsx) ---- */
 .tip { position: relative; cursor: help; }
 /* A small "?" that appears only while the trigger is hovered/focused. Absolutely
@@ -286,9 +329,20 @@ a { color: var(--broad-blue); }
 /* ---- Encoding / directionality card ---- */
 /* Explains how the trait was analyzed and what the sign of rg means; ordinal
    traits also show their answer levels in GWAS low→high order. */
+/* Encoding block now lives inside the headline card, to the right of the stat
+   strip, separated by a vertical rule (turns horizontal when it wraps below). */
+.detail-headline-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 1rem 1.6rem;
+  margin-top: 0.8rem;
+}
+.detail-headline-body .detail-stats { margin: 0; flex: 0 0 auto; }
 .detail-encoding {
-  padding: 0.9rem 1.1rem;
-  margin-bottom: 1.3rem;
+  flex: 1 1 19rem;
+  padding-left: 1.6rem;
+  border-left: 1px solid var(--border);
 }
 .encoding-head {
   display: flex;
@@ -571,6 +625,33 @@ input[type='text']:focus, input[type='number']:focus, select:focus {
 }
 .row-link:hover { text-decoration: underline; }
 
+/* Ordinal traits carry a persistent "?" next to the name; hovering it explains
+   the low→high answer order (the direction that makes rg's sign meaningful).
+   Only ordinal phenotypes get it — other kinds need no directional caveat. */
+.name-cell { display: inline; }
+.ord-tip { margin-left: 0.35em; vertical-align: 0.15em; }
+.ord-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1em;
+  height: 1em;
+  border-radius: 50%;
+  background: var(--accent-weak);
+  font-size: 0.72em;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--accent);
+  cursor: help;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+.ord-tip:hover .ord-mark,
+.ord-tip:focus-visible .ord-mark {
+  background: var(--accent);
+  color: var(--white);
+  transform: scale(1.12);
+}
+
 /* Horizontal/vertical scroll container so a wide table (many optional columns)
    scrolls instead of widening the page; header and first column stay pinned. */
 .table-scroll {
@@ -826,6 +907,19 @@ input[type='text']:focus, input[type='number']:focus, select:focus {
 /* Pair pickers grow a "selected" line below the box; top-align so the two search
    boxes stay level once one side is chosen. */
 .controls-row--top { align-items: flex-start; }
+
+/* Detail-page filters: four controls on one line (category + three sliders).
+   A CSS grid keeps them compact; the fields drop their own flex-basis. On
+   mobile they reflow into a 2-up grid (below). */
+.controls-row--filters {
+  display: grid;
+  grid-template-columns: minmax(140px, 0.85fr) 1fr 0.85fr 1.35fr;
+  gap: 0.3rem 1.1rem;
+  align-items: end;
+  margin-bottom: 1.2rem;
+}
+.controls-row--filters .field { flex: none; min-width: 0; }
+.controls-row--filters .field-label { margin-bottom: 0.15rem; }
 
 /* Preserve scientific-notation case (rg, h², p, z) inside uppercased labels. */
 .lc { text-transform: none; }
@@ -1105,9 +1199,28 @@ input[type='text']:focus, input[type='number']:focus, select:focus {
   .topbar-search { flex: 1 1 100%; margin-left: 0; order: 3; }
   .topbar-links { margin-left: auto; }
 }
+/* Once the headline card is narrow enough that the encoding wraps below the
+   stat strip, swap the vertical rule for a horizontal one. */
+@media (max-width: 640px) {
+  .detail-encoding {
+    flex-basis: 100%;
+    padding-left: 0;
+    padding-top: 0.9rem;
+    border-left: none;
+    border-top: 1px solid var(--border);
+  }
+}
 @media (max-width: 600px) {
   .topbar-title { font-size: 0.92rem; }
   .topbar-links a { padding: 0.35rem 0.45rem; }
   .results-toolbar { align-items: flex-start; }
   .hero { padding-top: 1.5rem; }
+  /* Filters reflow to a 2-up grid: category and the rg-range slider span the
+     full width, the two narrow sliders (min h², rg p) pair up on one row. */
+  .controls-row--filters {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.4rem 1rem;
+  }
+  .controls-row--filters .field-cat,
+  .controls-row--filters .field-rg { grid-column: 1 / -1; }
 }

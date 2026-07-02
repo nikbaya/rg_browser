@@ -125,11 +125,16 @@ export function ResultsTable({ rows, phenotypes, visible, sortKey, sortDir, onSo
     switch (col.key) {
       case 'name':
         return (
-          <Tip text={encodingSummary(p)} focusable={false}>
+          <span class="name-cell">
             <button class="row-link" onClick={() => onRowClick(row.j)}>
               {p.description}
             </button>
-          </Tip>
+            {p.kind === 'ordinal' && (
+              <Tip text={encodingSummary(p)} className="ord-tip">
+                <span class="ord-mark" aria-label="ordinal scale — hover for direction">?</span>
+              </Tip>
+            )}
+          </span>
         );
       case 'cat':
         return (

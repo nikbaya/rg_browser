@@ -88,7 +88,7 @@ export function EncodingCard({ seed }) {
   }
 
   return (
-    <div class="detail-encoding card">
+    <div class="detail-encoding">
       <div class="encoding-head">
         <span class="encoding-kind">{KIND_LABEL[kind] || kind}</span>
         <span class="encoding-note">{note}</span>
@@ -128,6 +128,21 @@ export function PhenotypeDetail({ data, index, onSelect }) {
   const [sexMats, setSexMats] = useState({}); // { male, female } loaded on demand
   const [sexError, setSexError] = useState(null); // message when a stratum fails to load
   const colsRef = useRef(null);
+  const headerRef = useRef(null);
+  const [headerStuck, setHeaderStuck] = useState(false);
+
+  // Show a compact fixed context bar (name + key stats) once the full headline
+  // card scrolls out of view — mainly useful on mobile while reading the table.
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return;
+    const io = new IntersectionObserver(
+      ([entry]) => setHeaderStuck(!entry.isIntersecting),
+      { rootMargin: '-48px 0px 0px 0px' }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
 
   // Load the male/female matrices lazily whenever a sex-specific column is shown.
   // On failure we surface a banner and switch that stratum's columns back off, so
@@ -284,7 +299,15 @@ export function PhenotypeDetail({ data, index, onSelect }) {
 
   return (
     <div class="detail">
-      <div class="detail-header card">
+      <div class={`detail-stickybar${headerStuck ? ' is-visible' : ''}`} aria-hidden={!headerStuck}>
+        <span class="detail-stickybar-name">{seed.description}</span>
+        <span class="detail-stickybar-stats mono">
+          <span><span class="lc">h2</span> {formatNum(seed.h2)}</span>
+          {seed.neff != null && <span><span class="lc">Neff</span> {seed.neff.toLocaleString('en-US')}</span>}
+        </span>
+      </div>
+
+      <div class="detail-header card" ref={headerRef}>
         <h1 class="detail-name">{seed.description}</h1>
         <div class="detail-meta mono">
           {seed.id}
@@ -296,20 +319,23 @@ export function PhenotypeDetail({ data, index, onSelect }) {
             {seed.cat}
           </span>
         </div>
-        <dl class="detail-stats mono">
-          <div>
-            <dt><Tip mark text="SNP heritability — the share of this trait's variance explained by common genotyped variants (both sexes). Liability scale for binary traits, observed scale otherwise.">h2</Tip></dt>
-            <dd>{formatNum(seed.h2)}</dd>
-          </div>
-          <div>
-            <dt><Tip mark text="P-value for the heritability estimate (the test that h² is greater than zero).">h2 p</Tip></dt>
-            <dd>{seed.h2_p != null ? formatP(seed.h2_p) : '—'}</dd>
-          </div>
-          <div>
-            <dt><Tip mark text="Effective sample size for this trait's GWAS.">Neff</Tip></dt>
-            <dd>{seed.neff != null ? seed.neff.toLocaleString('en-US') : '—'}</dd>
-          </div>
-        </dl>
+        <div class="detail-headline-body">
+          <dl class="detail-stats mono">
+            <div>
+              <dt><Tip text="SNP heritability — the share of this trait's variance explained by common genotyped variants (both sexes). Liability scale for binary traits, observed scale otherwise.">h2</Tip></dt>
+              <dd>{formatNum(seed.h2)}</dd>
+            </div>
+            <div>
+              <dt><Tip text="P-value for the heritability estimate (the test that h² is greater than zero).">h2 p</Tip></dt>
+              <dd>{seed.h2_p != null ? formatP(seed.h2_p) : '—'}</dd>
+            </div>
+            <div>
+              <dt><Tip text="Effective sample size for this trait's GWAS.">Neff</Tip></dt>
+              <dd>{seed.neff != null ? seed.neff.toLocaleString('en-US') : '—'}</dd>
+            </div>
+          </dl>
+          <EncodingCard seed={seed} />
+        </div>
         {showcase && (
           <a class="showcase-link" href={showcase.url} target="_blank" rel="noopener noreferrer">
             {showcase.label}
@@ -317,10 +343,8 @@ export function PhenotypeDetail({ data, index, onSelect }) {
         )}
       </div>
 
-      <EncodingCard seed={seed} />
-
-      <div class="controls-row">
-        <div class="field" style="flex: 0 1 220px;">
+      <div class="controls-row controls-row--filters">
+        <div class="field field-cat">
           <label class="field-label" for="d-category">Category</label>
           <select id="d-category" value={categoryFilter} onChange={(e) => setCategoryFilter(e.currentTarget.value)}>
             <option value="All">All categories</option>
@@ -329,7 +353,7 @@ export function PhenotypeDetail({ data, index, onSelect }) {
             ))}
           </select>
         </div>
-        <div class="field" style="flex: 1 1 200px;">
+        <div class="field">
           <label class="field-label" for="d-h2">
             Min <span class="lc">h2</span> {h2Min > 0 ? <span class="lc">{`= ${h2Min.toFixed(2)}`}</span> : 'any'}
           </label>
@@ -357,18 +381,7 @@ export function PhenotypeDetail({ data, index, onSelect }) {
             </div>
           </div>
         </div>
-        <div class="field" style="flex: 1 1 240px;">
-          <label class="field-label"><span class="lc">rg</span> range</label>
-          <RangeSlider
-            min={-1} max={1} step={0.05}
-            lo={rgLo} hi={rgHi}
-            onChange={(lo, hi) => { setRgLo(lo); setRgHi(hi); }}
-            format={(v) => v.toFixed(2)}
-            ticks={RG_TICKS}
-            listId="rg-ticks"
-          />
-        </div>
-        <div class="field" style="flex: 0 1 190px;">
+        <div class="field">
           <label class="field-label" for="d-pexp">
             <span class="lc">rg</span> <span class="lc">p</span> ≤ {pExp === 0 ? 'any' : <span class="lc">{`1e−${pExp}`}</span>}
           </label>
@@ -382,6 +395,17 @@ export function PhenotypeDetail({ data, index, onSelect }) {
             <input id="d-pexp" class="range-input" type="range" min="0" max={P_EXP_MAX} step="1"
               value={pExp} onInput={(e) => setPExp(parseInt(e.currentTarget.value, 10))} />
           </div>
+        </div>
+        <div class="field field-rg">
+          <label class="field-label"><span class="lc">rg</span> range</label>
+          <RangeSlider
+            min={-1} max={1} step={0.05}
+            lo={rgLo} hi={rgHi}
+            onChange={(lo, hi) => { setRgLo(lo); setRgHi(hi); }}
+            format={(v) => v.toFixed(2)}
+            ticks={RG_TICKS}
+            listId="rg-ticks"
+          />
         </div>
       </div>
 
