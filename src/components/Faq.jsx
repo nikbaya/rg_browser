@@ -24,6 +24,31 @@ const ITEMS = [
     ),
   },
   {
+    q: 'How do I interpret the direction (sign) of rg?',
+    a: (
+      <>
+        <p>
+          The sign of a genetic correlation is only meaningful relative to how each trait was{' '}
+          <em>coded</em>. Every phenotype page shows a <strong>coding card</strong> stating how the
+          GWAS analyzed that trait — <strong>continuous</strong>, <strong>count</strong>,{' '}
+          <strong>binary</strong> (case/control), or an <strong>ordinal scale</strong> — and what a
+          positive rg therefore means.
+        </p>
+        <p>
+          Ordinal traits are the subtle case. They were scored as a single increasing number, and
+          the coding card lists the answer levels in that <strong>low → high</strong> order. For{' '}
+          <span class="mono">4526</span> "Happiness" the scale runs "Extremely happy" →{' '}
+          "Extremely unhappy", so a <em>positive</em> rg means shared genetics with being{' '}
+          <em>less</em> happy — which is why Happiness correlates positively with neuroticism and
+          depressed mood. The order comes from the Neale-lab PHESANT pipeline, which sometimes
+          re-orders the raw UK Biobank answer codes (e.g. "Comparative body size at age 10" is
+          scored Thinner → About average → Plumper, not in raw code order), so always read the card
+          rather than assuming.
+        </p>
+      </>
+    ),
+  },
+  {
     q: 'What does each column in the results table mean?',
     a: (
       <>
@@ -40,9 +65,9 @@ const ITEMS = [
           <li><strong><span class="lc">rg SE</span></strong> — standard error of the rg estimate.</li>
           <li><strong><span class="lc">rg z</span></strong> — z-score, rg ÷ SE.</li>
           <li><strong><span class="lc">rg p</span></strong> — p-value for the test of no genetic correlation.</li>
-          <li><strong><span class="lc">h²</span></strong> — SNP heritability of the <em>partner</em> trait (both sexes).</li>
-          <li><strong><span class="lc">h² p</span></strong> — p-value of the partner's heritability estimate.</li>
-          <li><strong><span class="lc">Neff</span></strong> — effective sample size for the partner trait.</li>
+          <li><strong><span class="lc">h<sup>2</sup></span></strong> — SNP heritability of the <em>partner</em> trait (both sexes). Shown as "h2" in the compact table.</li>
+          <li><strong><span class="lc">h<sup>2</sup> p</span></strong> — p-value of the partner's heritability estimate ("h2 p" in the table).</li>
+          <li><strong><span class="lc">N<sub>eff</sub></span></strong> — effective sample size for the partner trait ("Neff" in the table).</li>
         </ul>
         <p>
           Optional <strong>male-specific</strong> (♂) and <strong>female-specific</strong> (♀)
@@ -54,7 +79,7 @@ const ITEMS = [
           <li><strong><span class="lc">rg z</span> ♂ / ♀</strong> — its z-score.</li>
           <li><strong><span class="lc">rg p</span> ♂ / ♀</strong> — its p-value.</li>
           <li>
-            <strong><span class="lc">h²</span> ♂ / ♀</strong> — the partner trait's sex-specific SNP
+            <strong><span class="lc">h<sup>2</sup></span> ♂ / ♀</strong> — the partner trait's sex-specific SNP
             heritability, shown only for the phenotypes where the topline analysis computed it
             ("—" otherwise).
           </li>
@@ -126,18 +151,19 @@ const ITEMS = [
     ),
   },
   {
-    q: 'What is heritability (h²), and on what scale is it reported?',
+    q: 'What is heritability (h², shown as “h2”), and on what scale is it reported?',
     a: (
       <>
         <p>
-          h² is the <strong>SNP heritability</strong> — the share of a trait's variance explained
-          by common genetic variants. It comes from the dedicated{' '}
+          h<sup>2</sup> is the <strong>SNP heritability</strong> — the share of a trait's variance
+          explained by common genetic variants (written "h2" in the compact table and header). It
+          comes from the dedicated{' '}
           <a
             href="https://github.com/astheeggeggs/UKBB_ldsc_r2/tree/master/h2_results"
             target="_blank"
             rel="noreferrer"
           >
-            topline UKBB LDSC h² results
+            topline UKBB LDSC h<sup>2</sup> results
           </a>{' '}
           (one estimate per phenotype), not from the genetic-correlation files.
         </p>

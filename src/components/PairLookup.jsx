@@ -103,14 +103,14 @@ export function PairLookup({ data, initial, initialB }) {
                 both={formatNum(both.z)} male={sexNum(male, 'z', sexMats.male)} female={sexNum(female, 'z', sexMats.female)} />
               <StatRow label={<><span class="lc">p</span>-value <span class="lc">(rg)</span></>}
                 both={formatP(both.p)} male={sexP(male, sexMats.male)} female={sexP(female, sexMats.female)} />
-              <StatRow label={<><span class="lc">h²</span> · {phenotypes[a].description}</>}
+              <StatRow label={<><span class="lc">h2</span> · {phenotypes[a].description}</>}
                 both={formatNum(phenotypes[a].h2)} male={formatNum(phenotypes[a].h2_male)} female={formatNum(phenotypes[a].h2_female)} />
-              <StatRow label={<><span class="lc">h²</span> · {phenotypes[b].description}</>}
+              <StatRow label={<><span class="lc">h2</span> · {phenotypes[b].description}</>}
                 both={formatNum(phenotypes[b].h2)} male={formatNum(phenotypes[b].h2_male)} female={formatNum(phenotypes[b].h2_female)} />
             </tbody>
           </table>
           <p class="view-hint" style="margin-top:0.6rem;">
-            Sex-specific h² is shown only for the phenotypes where the topline analysis
+            Sex-specific h2 is shown only for the phenotypes where the topline analysis
             computed it; "—" elsewhere. A blank male/female correlation means the pair
             was not significant in that stratum.
           </p>

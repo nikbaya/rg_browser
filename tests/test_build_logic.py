@@ -228,6 +228,80 @@ def test_h2_resolver_splits_by_sex(tmp_path, monkeypatch):
     assert stats["Q"]["female"]["h2"] == 0.40  # binary -> liability
 
 
+# --- encoding / directionality resolution ----------------------------------
+
+@pytest.fixture
+def synthetic_encoding(tmp_path, monkeypatch):
+    # Fields schema: value_type + encoding_id per field.
+    #   10 -> categorical-single ordinal (natural order), enc 500
+    #   11 -> categorical-single ordinal (PHESANT-reordered), enc 600
+    #   12 -> categorical-single yes/no (ordinal flag -1 -> binary), enc 700
+    #   13 -> integer, 14 -> continuous
+    fields = tmp_path / "fields.tsv"
+    fields.write_text(
+        "field_id\tvalue_type\tencoding_id\n"
+        "10\t21\t500\n11\t21\t600\n12\t21\t700\n13\t11\t0\n14\t31\t0\n",
+        encoding="latin-1",
+    )
+    monkeypatch.setattr(
+        build_data, "download_schema",
+        lambda: {"fields": str(fields), "categories": str(fields)},
+    )
+
+    # PHESANT ordinal info (comma-separated). enc 600 is reordered 1|3|2.
+    pho = tmp_path / "phesant.txt"
+    pho.write_text(
+        "dataCode,ordinal,ordering,reassignments,default_value,default_related_field\n"
+        "500,1,,,,\n"
+        "600,1,1|3|2,,,\n"
+        "700,-1,,,,\n",
+        encoding="latin-1",
+    )
+    monkeypatch.setattr(build_data, "download_phesant_ordinal", lambda: str(pho))
+
+    # Per-encoding answer levels; negative codes are UKB missing-sentinels.
+    codings = {
+        "500": "coding\tmeaning\n1\tLow\n2\tMid\n3\tHigh\n-1\tDo not know\n",
+        "600": "coding\tmeaning\n1\tThinner\n2\tPlumper\n3\tAbout average\n",
+    }
+    def fake_download_coding(enc):
+        if enc not in codings:
+            return None
+        p = tmp_path / f"coding_{enc}.tsv"
+        p.write_text(codings[enc], encoding="latin-1")
+        return str(p)
+    monkeypatch.setattr(build_data, "download_coding", fake_download_coding)
+
+
+def test_encoding_ordinal_natural_order(synthetic_encoding):
+    encoding_for = build_data.encoding_resolver()
+    e = encoding_for("10")
+    assert e["kind"] == "ordinal"
+    # Ascending code order, negative sentinel dropped.
+    assert e["levels"] == [[1, "Low"], [2, "Mid"], [3, "High"]]
+
+
+def test_encoding_ordinal_reordered(synthetic_encoding):
+    # PHESANT reordered the raw codes: 1 Thinner -> 3 About average -> 2 Plumper.
+    encoding_for = build_data.encoding_resolver()
+    e = encoding_for("11")
+    assert e["kind"] == "ordinal"
+    assert e["levels"] == [[1, "Thinner"], [3, "About average"], [2, "Plumper"]]
+
+
+def test_encoding_kinds(synthetic_encoding):
+    encoding_for = build_data.encoding_resolver()
+    assert encoding_for("12")["kind"] == "binary"        # yes/no categorical
+    assert encoding_for("13")["kind"] == "integer"
+    assert encoding_for("14")["kind"] == "continuous"
+    assert encoding_for("14_irnt")["kind"] == "continuous"  # normalised continuous
+    assert encoding_for("10_2")["kind"] == "binary"      # per-level indicator
+    assert encoding_for("I48")["kind"] == "binary"       # ICD-10 code
+    assert encoding_for("C3_PROSTATE")["kind"] == "binary"  # curated endpoint
+    # An ordinal field with no usable coding falls back to kind ordinal, no levels.
+    assert "levels" not in encoding_for("12")
+
+
 def test_parse_sex_matrices_overlay(tmp_path):
     # A sex file overlaid on a canonical 4-phenotype index (A,B,C,D). The sex
     # file covers A,B,C (and an out-of-universe Z, which is dropped); D is absent.

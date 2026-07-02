@@ -10,6 +10,7 @@ import {
   formatP,
   formatNum,
   ukbShowcaseLink,
+  encodingSummary,
 } from '../../src/lib/data.js';
 
 // 3x3 symmetric fixture, row-major.
@@ -135,5 +136,27 @@ describe('ukbShowcaseLink', () => {
     expect(ukbShowcaseLink('C3_PROSTATE')).toBeNull();
     expect(ukbShowcaseLink('I9_MI')).toBeNull();
     expect(ukbShowcaseLink('H7_LENS')).toBeNull();
+  });
+});
+
+describe('encodingSummary', () => {
+  it('shows the low→high answer order for ordinal traits', () => {
+    const s = encodingSummary({
+      kind: 'ordinal',
+      levels: [[1, 'Extremely happy'], [2, 'Very happy'], [6, 'Extremely unhappy']],
+    });
+    expect(s).toBe('Ordinal scale (low → high): Extremely happy → Very happy → Extremely unhappy');
+  });
+
+  it('names the type for continuous, count, and binary traits', () => {
+    expect(encodingSummary({ kind: 'continuous' })).toBe('Continuous trait');
+    expect(encodingSummary({ kind: 'integer' })).toBe('Count trait');
+    expect(encodingSummary({ kind: 'binary' })).toBe('Binary (case/control) trait');
+  });
+
+  it('falls back gracefully for ordinal without levels, and empty when unknown', () => {
+    expect(encodingSummary({ kind: 'ordinal' })).toBe('Ordinal scale');
+    expect(encodingSummary({})).toBe('');
+    expect(encodingSummary(null)).toBe('');
   });
 });

@@ -5,6 +5,7 @@ import { phenotypePasses, pairPasses, rowStats } from '../lib/filters.js';
 import { rowsToCsv, downloadCsv } from '../lib/csv.js';
 import { ResultsTable, COLUMNS, COLUMN_PRESETS, defaultVisibleColumns, sexesNeeded } from './ResultsTable.jsx';
 import { RangeSlider } from './RangeSlider.jsx';
+import { Tip } from './Tip.jsx';
 
 const PAGE = 50; // rows revealed initially and per "Show more" click
 
@@ -40,6 +41,72 @@ const COLUMN_GROUPS = [
   { title: 'Male-specific', cols: COLUMNS.filter((c) => c.group === 'male') },
   { title: 'Female-specific', cols: COLUMNS.filter((c) => c.group === 'female') },
 ];
+
+// Human-readable name for each GWAS analysis kind (from build_data.py).
+const KIND_LABEL = {
+  ordinal: 'Ordinal scale',
+  binary: 'Binary (case/control)',
+  continuous: 'Continuous',
+  integer: 'Count / integer',
+  categorical: 'Unordered categorical',
+};
+
+// Explains how the seed trait was analyzed and — crucially — what the *sign* of a
+// genetic correlation means for it. Ordinal traits also show their answer levels
+// in GWAS low→high order (the direction PHESANT scored them), so a positive rg is
+// unambiguous. Renders nothing for phenotypes with no encoding metadata.
+export function EncodingCard({ seed }) {
+  const { kind, levels } = seed;
+  if (!kind) return null;
+  const has = levels && levels.length >= 2;
+  const lo = has ? levels[0][1] : null;
+  const hi = has ? levels[levels.length - 1][1] : null;
+
+  let note;
+  if (kind === 'ordinal' && has) {
+    note = (
+      <>
+        Analyzed as an ordinal score rising from “{lo}” to “{hi}”. A positive rg means a
+        shared genetic basis with a <strong>higher</strong> score (toward “{hi}”); a
+        negative rg points toward “{lo}”.
+      </>
+    );
+  } else if (kind === 'ordinal') {
+    note = <>Analyzed as an ordinal score; a positive rg means a shared genetic basis with a higher value.</>;
+  } else if (kind === 'binary') {
+    note = (
+      <>
+        Analyzed as a case/control trait. A positive rg means a shared genetic basis with being a
+        <strong> case</strong> — see the UK Biobank Showcase for the exact case definition.
+      </>
+    );
+  } else if (kind === 'categorical') {
+    note = <>Analyzed as an unordered categorical trait, so the sign of a genetic correlation has no consistent higher/lower meaning.</>;
+  } else {
+    // continuous / integer
+    note = <>Analyzed as a {kind === 'integer' ? 'count' : 'continuous'} trait. A positive rg means a shared genetic basis with a <strong>higher</strong> value.</>;
+  }
+
+  return (
+    <div class="detail-encoding card">
+      <div class="encoding-head">
+        <span class="encoding-kind">{KIND_LABEL[kind] || kind}</span>
+        <span class="encoding-note">{note}</span>
+      </div>
+      {kind === 'ordinal' && has && (
+        <ol class="encoding-scale" aria-label="Answer levels in GWAS low-to-high order">
+          {levels.map(([v, m], i) => (
+            <li class="encoding-level" key={v}>
+              <span class="encoding-level-v mono">{v}</span>
+              <span class="encoding-level-m">{m}</span>
+              {i < levels.length - 1 && <span class="encoding-arrow" aria-hidden="true">→</span>}
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
+  );
+}
 
 // Detail page for one phenotype: metadata header, filters, and its ranked top
 // genetic correlations.
@@ -230,9 +297,18 @@ export function PhenotypeDetail({ data, index, onSelect }) {
           </span>
         </div>
         <dl class="detail-stats mono">
-          <div><dt>h²</dt><dd>{formatNum(seed.h2)}</dd></div>
-          <div><dt>h² p</dt><dd>{seed.h2_p != null ? formatP(seed.h2_p) : '—'}</dd></div>
-          <div><dt>Neff</dt><dd>{seed.neff != null ? seed.neff.toLocaleString('en-US') : '—'}</dd></div>
+          <div>
+            <dt><Tip mark text="SNP heritability — the share of this trait's variance explained by common genotyped variants (both sexes). Liability scale for binary traits, observed scale otherwise.">h2</Tip></dt>
+            <dd>{formatNum(seed.h2)}</dd>
+          </div>
+          <div>
+            <dt><Tip mark text="P-value for the heritability estimate (the test that h² is greater than zero).">h2 p</Tip></dt>
+            <dd>{seed.h2_p != null ? formatP(seed.h2_p) : '—'}</dd>
+          </div>
+          <div>
+            <dt><Tip mark text="Effective sample size for this trait's GWAS.">Neff</Tip></dt>
+            <dd>{seed.neff != null ? seed.neff.toLocaleString('en-US') : '—'}</dd>
+          </div>
         </dl>
         {showcase && (
           <a class="showcase-link" href={showcase.url} target="_blank" rel="noopener noreferrer">
@@ -240,6 +316,8 @@ export function PhenotypeDetail({ data, index, onSelect }) {
           </a>
         )}
       </div>
+
+      <EncodingCard seed={seed} />
 
       <div class="controls-row">
         <div class="field" style="flex: 0 1 220px;">
@@ -253,7 +331,7 @@ export function PhenotypeDetail({ data, index, onSelect }) {
         </div>
         <div class="field" style="flex: 1 1 200px;">
           <label class="field-label" for="d-h2">
-            Min <span class="lc">h²</span> {h2Min > 0 ? <span class="lc">{`= ${h2Min.toFixed(2)}`}</span> : 'any'}
+            Min <span class="lc">h2</span> {h2Min > 0 ? <span class="lc">{`= ${h2Min.toFixed(2)}`}</span> : 'any'}
           </label>
           <div class="range-slider has-ticks single">
             <div class="range-track">

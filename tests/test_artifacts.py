@@ -14,10 +14,12 @@ DATA_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "public", "data"
 )
 
-PHENO_KEYS = {"id", "description", "h2", "h2_p", "neff", "c", "cat"}
-# Optional sex-specific heritability fields, present only where topline h2 exists.
+PHENO_KEYS = {"id", "description", "h2", "h2_p", "neff", "c", "cat", "kind"}
+# Optional fields. Sex-specific heritability is present only where topline h2
+# exists; "levels" (ordinal answer scale, low->high) only for ordinal traits.
 PHENO_OPT_KEYS = {"h2_male", "h2_male_p", "neff_male",
-                  "h2_female", "h2_female_p", "neff_female"}
+                  "h2_female", "h2_female_p", "neff_female", "levels"}
+KINDS = {"ordinal", "binary", "continuous", "integer", "categorical"}
 
 MATRIX_NAMES = (
     "rg.f32", "se.f32", "nlogp.f32",
@@ -161,6 +163,15 @@ def test_phenotype_schema(phenotypes, n):
                 hp = p[f"h2_{s}_p"]
                 assert hp is None or (isinstance(hp, (int, float)) and 0 <= hp <= 1), \
                     f"h2_{s}_p out of range for {p['id']}: {hp}"
+        assert p["kind"] in KINDS, f"bad kind for {p['id']}: {p['kind']}"
+        # "levels" appears only on ordinal traits, as [value, meaning] pairs
+        # in GWAS low->high order.
+        if "levels" in p:
+            assert p["kind"] == "ordinal", f"levels on non-ordinal {p['id']}"
+            assert isinstance(p["levels"], list) and len(p["levels"]) >= 2
+            for lvl in p["levels"]:
+                assert isinstance(lvl, list) and len(lvl) == 2
+                assert isinstance(lvl[1], str) and lvl[1]
 
 
 def test_phenotype_ids_unique(phenotypes, n):

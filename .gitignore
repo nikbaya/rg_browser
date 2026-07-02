@@ -8,6 +8,7 @@ data/raw/
 # Broad Institute brand reference (internal doc — not for the public repo)
 Broad Style Guide*.pdf
 
-# Python bytecode
+# Python bytecode + local virtualenv
 __pycache__/
 *.pyc
+.venv/

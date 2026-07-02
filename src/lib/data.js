@@ -190,6 +190,25 @@ export function ukbShowcaseLink(id) {
   return null;
 }
 
+// Terse, plain-text label of how a phenotype was analyzed, for `title` tooltips:
+// just the type for continuous/binary/etc., and the low→high answer order for
+// ordinal traits (whose direction is the subtle case). Returns '' when the
+// phenotype carries no encoding metadata.
+export function encodingSummary(p) {
+  const { kind, levels } = p || {};
+  if (!kind) return '';
+  if (kind === 'ordinal') {
+    if (levels && levels.length >= 2) {
+      return `Ordinal scale (low → high): ${levels.map((l) => l[1]).join(' → ')}`;
+    }
+    return 'Ordinal scale';
+  }
+  if (kind === 'binary') return 'Binary (case/control) trait';
+  if (kind === 'integer') return 'Count trait';
+  if (kind === 'categorical') return 'Unordered categorical trait';
+  return 'Continuous trait';
+}
+
 // Format a p-value compactly (handles the extreme small values in this dataset).
 export function formatP(p) {
   if (p == null || Number.isNaN(p)) return '—'; // null: stat not computed for this trait

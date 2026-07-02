@@ -1,10 +1,11 @@
-import { formatNum, formatP } from '../lib/data.js';
+import { formatNum, formatP, encodingSummary } from '../lib/data.js';
 import { colorForRg, textOnRg, colorForCategory, textOnColor } from '../lib/color.js';
+import { Tip } from './Tip.jsx';
 
 // Column registry. `name` is always shown; the rest are toggleable. `sort` is
 // the sortKey emitted when the header is clicked. Every label is explicit about
 // whether it describes the genetic correlation (rg) or the partner trait's
-// heritability (h²), so there's no ambiguity. Scientific symbols are wrapped in
+// heritability (h2), so there's no ambiguity. Scientific symbols are wrapped in
 // `.lc` so the uppercased header style leaves their case alone.
 // A small sex tag appended to a stat label (e.g. rg ♀). Kept out of `.lc` so it
 // isn't lowercased with the scientific symbol.
@@ -18,8 +19,8 @@ export const COLUMNS = [
   { key: 'se', label: <span class="lc">rg SE</span>, sort: 'se', num: true, cluster: 'rg' },
   { key: 'z', label: <span class="lc">rg z</span>, sort: 'z', num: true, cluster: 'rg' },
   { key: 'p', label: <span class="lc">rg p</span>, sort: 'p', num: true, defaultOn: true, cluster: 'rg' },
-  { key: 'h2', label: <span class="lc">h²</span>, sort: 'h2', num: true, defaultOn: true, cluster: 'pheno' },
-  { key: 'h2p', label: <span class="lc">h² p</span>, sort: 'h2p', num: true, defaultOn: true, cluster: 'pheno' },
+  { key: 'h2', label: <span class="lc">h2</span>, sort: 'h2', num: true, defaultOn: true, cluster: 'pheno' },
+  { key: 'h2p', label: <span class="lc">h2 p</span>, sort: 'h2p', num: true, defaultOn: true, cluster: 'pheno' },
   { key: 'neff', label: <span class="lc">Neff</span>, sort: 'neff', num: true, cluster: 'pheno' },
   // Optional male/female strata (off by default). `sex` marks which matrices a
   // column needs loaded; `pheno` columns read straight from phenotypes.json.
@@ -27,12 +28,12 @@ export const COLUMNS = [
   { key: 'se_m', label: <><span class="lc">rg SE</span> {sexTag('♂')}</>, sort: 'se_m', num: true, group: 'male', sex: 'male', cluster: 'male' },
   { key: 'z_m', label: <><span class="lc">rg z</span> {sexTag('♂')}</>, sort: 'z_m', num: true, group: 'male', sex: 'male', cluster: 'male' },
   { key: 'p_m', label: <><span class="lc">rg p</span> {sexTag('♂')}</>, sort: 'p_m', num: true, group: 'male', sex: 'male', cluster: 'male' },
-  { key: 'h2_m', label: <><span class="lc">h²</span> {sexTag('♂')}</>, sort: 'h2_m', num: true, group: 'male', pheno: 'h2_male', cluster: 'male' },
+  { key: 'h2_m', label: <><span class="lc">h2</span> {sexTag('♂')}</>, sort: 'h2_m', num: true, group: 'male', pheno: 'h2_male', cluster: 'male' },
   { key: 'rg_f', label: <><span class="lc">rg</span> {sexTag('♀')}</>, sort: 'rg_f', num: true, group: 'female', sex: 'female', cluster: 'female' },
   { key: 'se_f', label: <><span class="lc">rg SE</span> {sexTag('♀')}</>, sort: 'se_f', num: true, group: 'female', sex: 'female', cluster: 'female' },
   { key: 'z_f', label: <><span class="lc">rg z</span> {sexTag('♀')}</>, sort: 'z_f', num: true, group: 'female', sex: 'female', cluster: 'female' },
   { key: 'p_f', label: <><span class="lc">rg p</span> {sexTag('♀')}</>, sort: 'p_f', num: true, group: 'female', sex: 'female', cluster: 'female' },
-  { key: 'h2_f', label: <><span class="lc">h²</span> {sexTag('♀')}</>, sort: 'h2_f', num: true, group: 'female', pheno: 'h2_female', cluster: 'female' },
+  { key: 'h2_f', label: <><span class="lc">h2</span> {sexTag('♀')}</>, sort: 'h2_f', num: true, group: 'female', pheno: 'h2_female', cluster: 'female' },
 ];
 
 // Display titles for each cluster's spanning group header. `base` (name/category)
@@ -124,9 +125,11 @@ export function ResultsTable({ rows, phenotypes, visible, sortKey, sortDir, onSo
     switch (col.key) {
       case 'name':
         return (
-          <button class="row-link" onClick={() => onRowClick(row.j)}>
-            {p.description}
-          </button>
+          <Tip text={encodingSummary(p)} focusable={false}>
+            <button class="row-link" onClick={() => onRowClick(row.j)}>
+              {p.description}
+            </button>
+          </Tip>
         );
       case 'cat':
         return (

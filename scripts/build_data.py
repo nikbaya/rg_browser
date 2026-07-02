@@ -9,7 +9,11 @@ into public/data/:
 
   phenotypes.json   - per-phenotype metadata in clustered leaf order
                       (h2 = topline liability-scale for binary, observed otherwise;
-                      optional h2_male/h2_female where sex-specific topline exists)
+                      optional h2_male/h2_female where sex-specific topline exists;
+                      "kind" = how the GWAS analyzed the trait
+                      [ordinal/binary/continuous/integer/categorical] and, for
+                      ordinal traits, "levels" = answer levels in low->high order,
+                      so the sign/direction of a genetic correlation is readable)
   rg.f32            - 677x677 Float32 matrix of genetic correlations (row-major)
   se.f32            - 677x677 Float32 matrix of standard errors
   nlogp.f32         - 677x677 Float32 matrix of -log10(p)
@@ -65,11 +69,34 @@ TOPLINE_H2_URL = (
     "master/h2_results/ukb31063_topline_h2_4203.tsv"
 )
 
+# PHESANT's data-coding ordinal file (the exact nov-2019 build used for the
+# Neale-lab round-2 GWAS). For each UKB data-coding it records whether PHESANT
+# treated the categorical as ORDINAL (analyzed as a continuous score) and, when
+# it reordered the answer levels, the explicit low->high ordering. This is what
+# makes a genetic correlation's *direction* interpretable: e.g. "Comparative
+# body size at age 10" is scored Thinner -> About average -> Plumper, NOT in the
+# raw code order (1 Thinner, 2 Plumper, 3 Average). Comma-separated; columns:
+# dataCode, ordinal, ordering, reassignments, default_value, default_related_field.
+PHESANT_ORDINAL_URL = (
+    "https://raw.githubusercontent.com/astheeggeggs/PHESANT/"
+    "master/variable-info/data-coding-ordinal-info-nov2019-update.txt"
+)
+# Per-encoding answer-level meanings, downloaded on demand from the UKB Showcase
+# (tab-separated: coding, meaning). One small file per unique encoding id.
+CODING_URL = "https://biobank.ndph.ox.ac.uk/showcase/codown.cgi?id={}"
+
+# UKB Showcase value_type ids (schema field "value_type").
+VT_INTEGER = "11"
+VT_CAT_SINGLE = "21"
+VT_CAT_MULTIPLE = "22"
+VT_CONTINUOUS = "31"
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RAW_DIR = os.path.join(ROOT, "data", "raw")
 RAW_PATHS = {sex: os.path.join(RAW_DIR, fname) for sex, fname in SEX_FILES.items()}
 RAW_PATH = RAW_PATHS["both_sexes"]  # canonical both-sexes source (tests use this)
 TOPLINE_H2_PATH = os.path.join(RAW_DIR, "ukb_topline_h2.tsv")
+PHESANT_ORDINAL_PATH = os.path.join(RAW_DIR, "phesant_ordinal.txt")
 OUT_DIR = os.path.join(ROOT, "public", "data")
 
 # File-name suffix per sex for the emitted matrices (both-sexes keeps no suffix
@@ -251,6 +278,144 @@ def category_resolver():
         return FALLBACK_CATEGORY
 
     return category_for
+
+
+def download_phesant_ordinal():
+    """Cache-download the PHESANT data-coding ordinal-info file."""
+    os.makedirs(RAW_DIR, exist_ok=True)
+    if os.path.exists(PHESANT_ORDINAL_PATH) and os.path.getsize(PHESANT_ORDINAL_PATH) > 0:
+        print(f"  phesant ordinal cached: {PHESANT_ORDINAL_PATH}")
+        return PHESANT_ORDINAL_PATH
+    print(f"  downloading {PHESANT_ORDINAL_URL} ...")
+    urllib.request.urlretrieve(PHESANT_ORDINAL_URL, PHESANT_ORDINAL_PATH)
+    print(f"  saved {os.path.getsize(PHESANT_ORDINAL_PATH)/1e3:.0f} KB -> {PHESANT_ORDINAL_PATH}")
+    return PHESANT_ORDINAL_PATH
+
+
+def download_coding(enc_id):
+    """Cache-download one UKB Showcase encoding's answer levels; return its path.
+
+    Returns None (rather than raising) if the encoding can't be fetched, so a
+    single missing coding never fails the whole build.
+    """
+    os.makedirs(RAW_DIR, exist_ok=True)
+    path = os.path.join(RAW_DIR, f"coding_{enc_id}.tsv")
+    if os.path.exists(path) and os.path.getsize(path) > 0:
+        return path
+    try:
+        urllib.request.urlretrieve(CODING_URL.format(enc_id), path)
+        return path
+    except Exception as e:  # noqa: BLE001 - one bad coding shouldn't kill the build
+        print(f"  WARNING: could not download coding {enc_id}: {e}")
+        return None
+
+
+def encoding_resolver():
+    """Return encoding_for(pid) -> {"kind": ..., "levels"?: [[value, meaning], ...]}.
+
+    Classifies each phenotype by how the Neale-lab GWAS analyzed it, so the
+    frontend can state what the *sign* of a genetic correlation means:
+
+      ordinal    - a categorical scored as a continuous score; "levels" gives the
+                   answer levels in GWAS low->high order (from PHESANT), so a
+                   positive rg means "correlated with a higher score".
+      binary     - a case/control trait (yes/no fields, reassigned categoricals,
+                   per-level indicators, ICD-10 / curated disease endpoints).
+      continuous - a quantitative field (incl. inverse-rank-normalised "_irnt").
+      integer    - an integer-valued field (counts, durations, ...).
+      categorical- an unordered categorical with no single direction (rare).
+
+    "levels" is emitted only for ordinal traits with >=2 resolvable levels.
+    """
+    import csv
+
+    paths = download_schema()
+
+    def rows(path):
+        with open(path, encoding="latin-1", newline="") as fh:
+            return list(csv.DictReader(fh, delimiter="\t"))
+
+    field_vt = {r["field_id"]: r["value_type"] for r in rows(paths["fields"])}
+    field_enc = {r["field_id"]: r["encoding_id"] for r in rows(paths["fields"])}
+
+    # PHESANT ordinal info, keyed by data-coding id (this file is comma-separated).
+    ordinal_info = {}
+    with open(download_phesant_ordinal(), encoding="latin-1", newline="") as fh:
+        for r in csv.DictReader(fh):
+            ordinal_info[r["dataCode"]] = r
+
+    coding_cache = {}
+
+    def coding(enc):
+        """encoding id -> {code(str): meaning(str)} (cached; {} when unavailable)."""
+        if not enc or enc in ("0", ""):
+            return {}
+        if enc in coding_cache:
+            return coding_cache[enc]
+        path = download_coding(enc)
+        cmap = {}
+        if path:
+            with open(path, encoding="latin-1", newline="") as fh:
+                reader = csv.reader(fh, delimiter="\t")
+                next(reader, None)  # header: coding, meaning
+                for row in reader:
+                    if len(row) >= 2:
+                        cmap[row[0]] = row[1]
+        coding_cache[enc] = cmap
+        return cmap
+
+    def is_int(s):
+        try:
+            int(s)
+            return True
+        except ValueError:
+            return False
+
+    def levels_for(enc, ordering):
+        """Answer levels as [value, meaning] pairs in GWAS low->high order.
+
+        Uses PHESANT's explicit ordering when it reordered the coding; otherwise
+        the natural ascending code order, dropping negative codes (UKB's
+        Do-not-know / Prefer-not-to-answer sentinels, treated as missing).
+        """
+        cmap = coding(enc)
+        if ordering:
+            codes = ordering.split("|")
+        else:
+            codes = sorted((c for c in cmap if is_int(c) and int(c) >= 0),
+                           key=lambda c: int(c))
+        out = []
+        for c in codes:
+            if c in cmap:
+                out.append([int(c) if is_int(c) else c, cmap[c]])
+        return out
+
+    def encoding_for(pid):
+        m = re.match(r"^(\d+)(?:_(\w+))?$", pid)
+        if not m:  # ICD-10 code, FinnGen/curated endpoint -> case/control
+            return {"kind": "binary"}
+        fid, suffix = m.group(1), m.group(2)
+        if suffix in ("irnt", "raw"):
+            return {"kind": "continuous"}
+        if suffix:  # per-level indicator, e.g. 20002_1286, 20126_0
+            return {"kind": "binary"}
+        vt = field_vt.get(fid)
+        if vt == VT_CONTINUOUS:
+            return {"kind": "continuous"}
+        if vt == VT_INTEGER:
+            return {"kind": "integer"}
+        if vt in (VT_CAT_SINGLE, VT_CAT_MULTIPLE):
+            enc = field_enc.get(fid)
+            info = ordinal_info.get(enc)
+            # ordinal == "1": PHESANT scored it as an ordered continuous trait.
+            # Anything else (0/-1/-2) collapses to a yes/no or reassigned binary.
+            if info and info.get("ordinal") == "1":
+                lv = levels_for(enc, info.get("ordering", ""))
+                return {"kind": "ordinal", "levels": lv} if len(lv) >= 2 else {"kind": "ordinal"}
+            return {"kind": "binary"}
+        return {"kind": "categorical"}
+
+    return encoding_for
 
 
 def parse_raw():
@@ -453,6 +618,10 @@ def main():
 
     # Resolve each phenotype's real UKBB category (from the showcase schema).
     category_for = category_resolver()
+    # How the GWAS analyzed each phenotype (ordinal/binary/continuous/...) plus,
+    # for ordinal traits, the answer levels in low->high order — so the frontend
+    # can explain what the direction (sign) of a genetic correlation means.
+    encoding_for = encoding_resolver()
     # Per-phenotype heritability stats from the dedicated topline h2 analysis.
     topline = h2_resolver()
 
@@ -473,6 +642,12 @@ def main():
             "c": int(flat[orig]) - 1,  # 0-based cluster id
             "cat": category_for(pid),  # human-readable UKBB category
         }
+        # How the GWAS analyzed this trait, so the frontend can explain the sign
+        # of rg. "levels" (ordinal only) lists answer levels in low->high order.
+        enc = encoding_for(pid)
+        entry["kind"] = enc["kind"]
+        if enc.get("levels"):
+            entry["levels"] = enc["levels"]
         # Sex-specific topline h2 exists for only a handful of phenotypes; emit
         # the compact fields only when present so phenotypes.json stays small.
         # The frontend falls back to the both-sexes value otherwise.

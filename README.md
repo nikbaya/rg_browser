@@ -23,6 +23,10 @@ Styled per the Broad Institute brand (not an official Broad product).
   page links out to the [UK Biobank Data Showcase](https://biobank.ndph.ox.ac.uk/showcase/):
   standard fields (numeric ids) link to their field page; ICD-10 diagnosis phenotypes link to the
   Showcase ICD-10 coding classification (no per-code page exists); curated endpoints have no link.
+  Each page also shows a **coding card** stating how the GWAS analyzed the trait
+  (continuous / count / binary / ordinal) and therefore what the *sign* of a genetic correlation
+  means — for ordinal traits it lists the answer levels in GWAS low→high order (e.g. `4526`
+  "Happiness" runs "Extremely happy" → "Extremely unhappy", so a positive rg means *less* happy).
 - **Pairwise lookup** — full LDSC stats (rg, se, z, p, h²) for any two phenotypes, for both
   sexes and, where available, the male- and female-specific analyses.
 
@@ -63,6 +67,19 @@ their Showcase *main category*, rolled up from ~70 granular groups into a compac
 ICD-10 chapter (`ICD_LETTER` / `ICD_ROMAN` / `NAMED_ENDPOINTS`); everything else falls back to
 `Other`. This is also explained in the in-app FAQ.
 
+## Phenotype encoding & rg direction
+
+The sign of a genetic correlation only means something relative to how each trait was *coded*, so
+`build_data.py` (`encoding_resolver`) records a `kind` per phenotype — `continuous` (incl. the
+inverse-rank-normalised `_irnt` fields), `integer`, `binary` (yes/no fields, per-level indicators,
+ICD-10 / curated disease endpoints), `ordinal`, or `categorical`. For **ordinal** traits it also
+emits `levels`: the answer levels in the GWAS **low→high** order. That order is taken from the
+Neale-lab [PHESANT](https://github.com/astheeggeggs/PHESANT) `data-coding-ordinal-info` file
+(which sometimes *reorders* the raw UK Biobank answer codes — e.g. "Comparative body size at age
+10" is scored Thinner → About average → Plumper), with the level meanings pulled per-encoding from
+the Showcase coding tables. The phenotype detail page's coding card renders this, and the in-app
+FAQ explains how to read it.
+
 ## Data, attribution & disclaimer
 
 The displayed values are publicly released **summary statistics** from the
@@ -96,7 +113,9 @@ small JSON metadata, so the whole end-user payload is ~6MB.
   symmetric `rg`/`se`/`-log10(p)` matrices, runs average-linkage hierarchical clustering for a
   shared leaf order, sources per-phenotype heritability from the dedicated
   [topline h2 results](https://github.com/astheeggeggs/UKBB_ldsc_r2/tree/master/h2_results)
-  (liability scale for binary traits, observed otherwise), and emits artifacts to `public/data/`.
+  (liability scale for binary traits, observed otherwise), classifies each phenotype's encoding
+  and ordinal answer scale (Showcase schema + PHESANT ordinal-info + per-encoding coding tables),
+  and emits artifacts to `public/data/`.
 - `src/` — Vite + Preact + D3 app (`d3-hierarchy`, `d3-shape`, `d3-scale`, `d3-selection`).
 
 ## Develop
