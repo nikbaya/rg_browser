@@ -303,6 +303,7 @@ export function PhenotypeDetail({ data, index, onSelect }) {
         <span class="detail-stickybar-name">{seed.description}</span>
         <span class="detail-stickybar-stats mono">
           <span><span class="lc">h2</span> {formatNum(seed.h2)}</span>
+          <span><span class="lc">h2 p</span> {seed.h2_p != null ? formatP(seed.h2_p) : '—'}</span>
           {seed.neff != null && <span><span class="lc">Neff</span> {seed.neff.toLocaleString('en-US')}</span>}
         </span>
       </div>

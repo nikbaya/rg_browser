@@ -24,8 +24,9 @@ a { color: var(--broad-blue); }
 
 /* ---- Top bar (persistent header) ---- */
 .topbar {
-  position: sticky;
-  top: 0;
+  /* Not sticky: the topbar (search + nav) scrolls away with the page. Only the
+     phenotype context bar stays pinned while reading a detail table. */
+  position: relative;
   z-index: 40;
   display: flex;
   align-items: center;
@@ -244,48 +245,51 @@ a { color: var(--broad-blue); }
 }
 .showcase-link:hover { text-decoration: underline; }
 
-/* Compact context bar that slides in from the top once the headline card is
-   scrolled past. Hidden on wide screens (there's room to keep scrolling back
-   up); shown on narrow/mobile where the table is long. */
-.detail-stickybar { display: none; }
-@media (max-width: 700px) {
-  .detail-stickybar {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    z-index: 45; /* above the topbar (40) — the trait context wins while scrolling */
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 0.8rem;
-    padding: 0.5rem clamp(1rem, 4vw, 2.5rem);
-    background: rgba(255, 255, 255, 0.95);
-    backdrop-filter: saturate(1.4) blur(8px);
-    border-bottom: 1px solid var(--border);
-    border-left: 4px solid var(--accent);
-    box-shadow: var(--shadow);
-    transform: translateY(-105%);
-    transition: transform 0.22s ease;
-  }
-  .detail-stickybar.is-visible { transform: translateY(0); }
-  .detail-stickybar-name {
-    font-weight: 700;
-    font-size: 0.9rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    min-width: 0;
-  }
-  .detail-stickybar-stats {
-    flex: none;
-    display: flex;
-    gap: 0.8rem;
-    font-size: 0.8rem;
-    color: var(--text-muted);
-    white-space: nowrap;
-  }
+/* Compact context bar — a simplified stand-in for the headline card (just the
+   name + the h2/h2 p/Neff stat line, no category chip, encoding, or showcase
+   link) that slides in from the top once the full card scrolls past. Shown at
+   all widths so the trait stays identified while reading the long table. */
+.detail-stickybar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 45; /* above the topbar (40) — the trait context wins while scrolling */
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem 1rem;
+  padding: 0.3rem clamp(0.9rem, 4vw, 2.5rem);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: saturate(1.4) blur(8px);
+  border-bottom: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  box-shadow: var(--shadow);
+  transform: translateY(-105%);
 }
+.detail-stickybar.is-visible { transform: translateY(0); }
+.detail-stickybar-name {
+  font-weight: 700;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+/* Stats stack vertically into a narrow right-aligned column, so the phenotype
+   name keeps as much horizontal room as possible. */
+.detail-stickybar-stats {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.2;
+  font-size: 0.62rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+/* Each stat's label sits muted, its value inherits the stronger text color. */
+.detail-stickybar-stats .lc { color: var(--text-muted); font-weight: 600; }
 
 /* ---- Instant hover tooltip (src/components/Tip.jsx) ---- */
 .tip { position: relative; cursor: help; }
@@ -643,13 +647,11 @@ input[type='text']:focus, input[type='number']:focus, select:focus {
   line-height: 1;
   color: var(--accent);
   cursor: help;
-  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
 }
 .ord-tip:hover .ord-mark,
 .ord-tip:focus-visible .ord-mark {
   background: var(--accent);
   color: var(--white);
-  transform: scale(1.12);
 }
 
 /* Horizontal/vertical scroll container so a wide table (many optional columns)
