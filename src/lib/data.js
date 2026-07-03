@@ -133,6 +133,67 @@ export function topCorrelations(data, i, k = 25) {
   return out.slice(0, k);
 }
 
+// Traits "most shared" between phenotypes a and b: the traits that both a and b
+// are genetically correlated with. Each candidate trait j is ranked by |rg|
+// against a and (separately) against b; the two ranks are averaged, and the list
+// is sorted by that average (ascending — a low avg rank means j sits near the top
+// of *both* traits' correlation lists). Only traits with a (non-NaN) correlation
+// to BOTH a and b are eligible; a and b themselves are excluded.
+//
+// `maxP` optionally tightens eligibility: when set, a trait is kept only if the
+// p-value of *both* its correlations (to a and to b) is <= maxP. Ranks are still
+// computed over each seed's full correlation list, so filtering removes rows
+// without renumbering the ranks that survive.
+export function sharedCorrelations(data, a, b, k = 15, maxP = null) {
+  const { n, rg, se, nlogp } = data;
+  // p-value of the (i, j) correlation, recovering underflowed (p≈0) cases.
+  const pFor = (i, j) => {
+    const s = se[i * n + j];
+    const z = s ? rg[i * n + j] / s : NaN;
+    return pFromNlogpZ(nlogp[i * n + j], z);
+  };
+  const passesP = (i, j) => {
+    if (maxP == null) return true;
+    const p = pFor(i, j);
+    return !Number.isNaN(p) && p <= maxP;
+  };
+  // Map j -> 1-based rank of j among all traits by |rg| against seed i.
+  const ranksAgainst = (i) => {
+    const list = [];
+    for (let j = 0; j < n; j++) {
+      if (j === i) continue;
+      const v = rg[i * n + j];
+      if (Number.isNaN(v)) continue;
+      list.push({ j, abs: Math.abs(v) });
+    }
+    list.sort((x, y) => y.abs - x.abs);
+    const rank = new Map();
+    list.forEach((e, idx) => rank.set(e.j, idx + 1));
+    return rank;
+  };
+  const rankA = ranksAgainst(a);
+  const rankB = ranksAgainst(b);
+  const out = [];
+  for (const [j, ra] of rankA) {
+    if (j === b) continue; // the paired traits themselves aren't "shared" partners
+    const rb = rankB.get(j);
+    if (rb === undefined) continue; // must be correlated with both
+    if (!passesP(a, j) || !passesP(b, j)) continue; // both correlations significant enough
+    out.push({
+      j,
+      rgA: rg[a * n + j],
+      rgB: rg[b * n + j],
+      pA: pFor(a, j),
+      pB: pFor(b, j),
+      rankA: ra,
+      rankB: rb,
+      avgRank: (ra + rb) / 2,
+    });
+  }
+  out.sort((x, y) => x.avgRank - y.avgRank);
+  return out.slice(0, k);
+}
+
 // |z| beyond which a two-tailed normal p-value underflows below 1e-300. The
 // build script stores nlogp = NaN when the source p underflowed to exactly 0
 // (the most significant pairs), so we recover "p ≈ 0" from the z-score.

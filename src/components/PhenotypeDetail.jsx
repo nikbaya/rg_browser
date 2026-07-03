@@ -337,11 +337,16 @@ export function PhenotypeDetail({ data, index, onSelect }) {
           </dl>
           <EncodingCard seed={seed} />
         </div>
-        {showcase && (
-          <a class="showcase-link" href={showcase.url} target="_blank" rel="noopener noreferrer">
-            {showcase.label}
+        <div class="detail-header-links">
+          <a class="showcase-link" href={`#/pair/${encodeURIComponent(seed.id)}`}>
+            Compare with another trait →
           </a>
-        )}
+          {showcase && (
+            <a class="showcase-link" href={showcase.url} target="_blank" rel="noopener noreferrer">
+              {showcase.label}
+            </a>
+          )}
+        </div>
       </div>
 
       <div class="controls-row controls-row--filters">
