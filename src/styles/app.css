@@ -645,6 +645,20 @@ input[type='text']:focus, input[type='number']:focus, select:focus {
 }
 .row-link:hover { text-decoration: underline; }
 
+/* Subtle "compare in Pairwise" affordance to the right of each correlated trait.
+   Faint by default so it doesn't compete with the name; brightens on hover/focus. */
+.pair-link-tip { margin-left: 0.4em; }
+.pair-link {
+  color: var(--text-muted);
+  opacity: 0.5;
+  font-size: 0.9em;
+  text-decoration: none;
+  cursor: pointer;
+  transition: opacity 0.12s ease, color 0.12s ease;
+}
+.pair-link:hover,
+.pair-link:focus-visible { opacity: 1; color: var(--accent); }
+
 /* Ordinal traits carry a persistent "?" next to the name; hovering it explains
    the low→high answer order (the direction that makes rg's sign meaningful).
    Only ordinal phenotypes get it — other kinds need no directional caveat. */

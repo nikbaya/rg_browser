@@ -465,6 +465,7 @@ export function PhenotypeDetail({ data, index, onSelect }) {
         <ResultsTable
           rows={rows}
           phenotypes={phenotypes}
+          seedId={seed.id}
           visible={visible}
           sortKey={sortKey}
           sortDir={sortDir}

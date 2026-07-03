@@ -104,7 +104,7 @@ export function sexesNeeded(visible) {
 }
 
 // Presentational, sortable correlation table. `rows` carry { j, rg, se, z, p }.
-export function ResultsTable({ rows, phenotypes, visible, sortKey, sortDir, onSort, onRowClick }) {
+export function ResultsTable({ rows, phenotypes, seedId, visible, sortKey, sortDir, onSort, onRowClick }) {
   const cols = COLUMNS.filter((c) => c.always || visible.has(c.key));
   const arrow = sortDir === 'asc' ? ' ▲' : ' ▼';
   const groups = clusterSpans(cols);
@@ -132,6 +132,21 @@ export function ResultsTable({ rows, phenotypes, visible, sortKey, sortDir, onSo
             {p.kind === 'ordinal' && (
               <Tip text={encodingSummary(p)} className="ord-tip">
                 <span class="ord-mark" aria-label="ordinal scale — hover for direction">?</span>
+              </Tip>
+            )}
+            {seedId != null && (
+              <Tip
+                text="Open the Pairwise view for this pair — full LDSC stats side by side, plus the traits they most share."
+                focusable={false}
+                className="pair-link-tip"
+              >
+                <a
+                  class="pair-link"
+                  href={`#/pair/${encodeURIComponent(seedId)}/${encodeURIComponent(p.id)}`}
+                  aria-label={`Compare in Pairwise: ${p.description}`}
+                >
+                  ⇄
+                </a>
               </Tip>
             )}
           </span>
